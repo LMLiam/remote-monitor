@@ -37,7 +37,10 @@ git tag -a v0.1.0 -m "remote-monitor v0.1.0"
 git push origin v0.1.0
 ```
 
-The tag push starts `.github/workflows/release.yml`, which creates the GitHub Release.
+The tag push starts `.github/workflows/release.yml`, which creates the GitHub
+Release. GoReleaser publishes the archives and checksums first; the workflow
+then replaces the release body with GitHub-generated notes so merged pull
+requests are listed with their authors and full changelog links.
 
 The release job also generates the `remote-monitor` formula from GoReleaser's
 checksum file and pushes it to the `LMLiam/homebrew-tap` repository. Configure
@@ -57,6 +60,8 @@ brew install LMLiam/tap/remote-monitor
 After the workflow finishes:
 
 - Confirm the release contains Linux and macOS archives for `amd64` and `arm64`.
+- Confirm the release notes use GitHub's generated "What's Changed" format with
+  pull request author attribution.
 - Confirm the checksum file lists every archive.
 - Confirm `LMLiam/homebrew-tap` contains `Formula/remote-monitor.rb` for the
   release tag.
