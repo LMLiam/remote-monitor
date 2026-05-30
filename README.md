@@ -24,6 +24,14 @@ Terminal UI for monitoring a remote Linux host over SSH.
 
 ## Install
 
+With Homebrew:
+
+```sh
+brew install LMLiam/tap/remote-monitor
+```
+
+With Go:
+
 ```sh
 go install github.com/lmliam/remote-monitor/cmd/remote-monitor@latest
 ```

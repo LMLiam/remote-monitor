@@ -39,12 +39,29 @@ git push origin v0.1.0
 
 The tag push starts `.github/workflows/release.yml`, which creates the GitHub Release.
 
+The release job also generates the `remote-monitor` formula from GoReleaser's
+checksum file and pushes it to the `LMLiam/homebrew-tap` repository. Configure
+a `TAP_GITHUB_TOKEN` repository secret before publishing the first tag. Use a
+fine-grained token scoped to `LMLiam/homebrew-tap` with contents read/write
+access; the workflow's normal `GITHUB_TOKEN` keeps using the release
+repository's `contents: write` permission.
+
+After the tap update lands, users can install with:
+
+```sh
+brew install LMLiam/tap/remote-monitor
+```
+
 ## Verify
 
 After the workflow finishes:
 
 - Confirm the release contains Linux and macOS archives for `amd64` and `arm64`.
 - Confirm the checksum file lists every archive.
+- Confirm `LMLiam/homebrew-tap` contains `Formula/remote-monitor.rb` for the
+  release tag.
+- Run `brew install LMLiam/tap/remote-monitor`.
+- Run `brew test LMLiam/tap/remote-monitor`.
 - Download one Linux archive and one macOS archive.
 - Run `remote-monitor --help`.
 - Run `remote-monitor --version` and confirm it matches the tag.
