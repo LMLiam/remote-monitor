@@ -1,0 +1,79 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  GORELEASER_VERSION: v2.16.0
+
+jobs:
+  snapshot:
+    name: Release Snapshot
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install GoReleaser
+        run: go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
+
+      - name: Check GoReleaser config
+        run: goreleaser check
+
+      - name: Build snapshot artifacts
+        run: goreleaser release --snapshot --clean --skip=publish
+
+      - name: Verify Linux snapshot artifact
+        run: |
+          archive="$(find dist -maxdepth 1 -name 'remote-monitor_*_linux_amd64.tar.gz' -print -quit)"
+          test -n "$archive"
+          mkdir -p /tmp/remote-monitor-release-check
+          tar -xzf "$archive" -C /tmp/remote-monitor-release-check
+          /tmp/remote-monitor-release-check/remote-monitor --help >/dev/null
+          /tmp/remote-monitor-release-check/remote-monitor --version
+
+  release:
+    name: Tagged Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install GoReleaser
+        run: go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
+
+      - name: Check GoReleaser config
+        run: goreleaser check
+
+      - name: Publish GitHub release
+        run: goreleaser release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

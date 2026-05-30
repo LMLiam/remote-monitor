@@ -1,0 +1,58 @@
+version: 2
+
+project_name: remote-monitor
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: remote-monitor
+    main: ./cmd/remote-monitor
+    binary: remote-monitor
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/lmliam/remote-monitor/internal/version.buildVersion={{ if .IsSnapshot }}{{ .Version }}{{ else }}{{ .Tag }}{{ end }}
+      - -X github.com/lmliam/remote-monitor/internal/version.buildCommit={{ .Commit }}
+      - -X github.com/lmliam/remote-monitor/internal/version.buildDate={{ .Date }}
+
+archives:
+  - id: remote-monitor
+    ids:
+      - remote-monitor
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - SUPPORT.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: LMLiam
+    name: remote-monitor
+  draft: false
+  prerelease: auto
