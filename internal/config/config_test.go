@@ -22,6 +22,19 @@ func TestParseConfigRequiresHost(t *testing.T) {
 	}
 }
 
+func TestParseConfigAllowsVersionWithoutHost(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{"-version"})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if !cfg.ShowVersion {
+		t.Fatalf("show version = %t", cfg.ShowVersion)
+	}
+}
+
 func TestParseConfigClampsAndPositionalHost(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
 	t.Setenv("MONITOR_INTERVAL", "")

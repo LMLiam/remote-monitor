@@ -20,6 +20,7 @@ func testConfig(overrides ...func(*core.Config)) core.Config {
 		RenderFPS:          0,
 		Compact:            false,
 		NoBanner:           false,
+		ShowVersion:        false,
 		Theme:              "",
 		DisableTrueColor:   false,
 		SSHConnectTimeout:  0,

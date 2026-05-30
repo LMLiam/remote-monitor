@@ -27,6 +27,7 @@ type Config struct {
 	RenderFPS          int
 	Compact            bool
 	NoBanner           bool
+	ShowVersion        bool
 	Theme              string
 	DisableTrueColor   bool
 	SSHConnectTimeout  time.Duration

@@ -1,12 +1,30 @@
 package monitor_test
 
 import (
+	"bytes"
+	"context"
+	"strings"
+
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/metrics"
 	monitor "github.com/lmliam/remote-monitor/internal/monitor"
+	"github.com/lmliam/remote-monitor/internal/version"
 	"testing"
 	"time"
 )
+
+func TestRunPrintsVersionWithoutHost(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	if err := monitor.Run(context.Background(), []string{"-version"}, &out); err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+
+	if got := strings.TrimSpace(out.String()); got != version.Current().String() {
+		t.Fatalf("version output = %q", got)
+	}
+}
 
 func TestRenderIntervalUsesConfiguredFPS(t *testing.T) {
 	t.Parallel()

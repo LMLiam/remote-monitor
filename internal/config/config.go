@@ -53,6 +53,7 @@ func ParseConfig(args []string) (core.Config, error) {
 	fps := fs.Int("fps", fpsDefault, "TTY redraw frames per second")
 	compact := fs.Bool("compact", compactDefault, "Use a compact stacked layout")
 	noBanner := fs.Bool("no-banner", noBannerDefault, "Disable the large rendered title banner")
+	showVersion := fs.Bool("version", false, "Print version information and exit")
 	theme := fs.String("theme", themeDefault, "Color theme (aurora, basic)")
 	noTrueColor := fs.Bool("no-truecolor", noTrueColorDefault, "Force 256-color rendering even on truecolor terminals")
 	sshConnectTimeout := fs.Int("ssh-connect-timeout", sshConnectTimeoutDefault, "SSH connect timeout in seconds")
@@ -67,7 +68,7 @@ func ParseConfig(args []string) (core.Config, error) {
 	if fs.NArg() > 0 {
 		*host = fs.Arg(0)
 	}
-	if strings.TrimSpace(*host) == "" {
+	if strings.TrimSpace(*host) == "" && !*showVersion {
 		return core.Config{}, ErrEmptyHost
 	}
 	if *interval < 1 {
@@ -111,6 +112,7 @@ func ParseConfig(args []string) (core.Config, error) {
 		RenderFPS:          *fps,
 		Compact:            *compact,
 		NoBanner:           *noBanner,
+		ShowVersion:        *showVersion,
 		Theme:              *theme,
 		DisableTrueColor:   *noTrueColor,
 		SSHConnectTimeout:  time.Duration(*sshConnectTimeout) * time.Second,

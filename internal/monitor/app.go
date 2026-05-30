@@ -3,28 +3,41 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/lmliam/remote-monitor/internal/config"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/metrics"
 	"github.com/lmliam/remote-monitor/internal/render"
 	"github.com/lmliam/remote-monitor/internal/transport"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+	"github.com/lmliam/remote-monitor/internal/version"
 )
 
 const streamChannelBuffer = 32
 
 // RunCLI parses process configuration and starts the monitor application.
 func RunCLI() error {
-	cfg, err := config.ParseConfig(os.Args[1:])
+	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer cancel()
+
+	return Run(ctx, os.Args[1:], os.Stdout)
+}
+
+// Run parses args and starts the monitor, or prints version metadata and exits.
+func Run(ctx context.Context, args []string, stdout io.Writer) error {
+	cfg, err := config.ParseConfig(args)
 	if err != nil {
 		return err
 	}
+	if cfg.ShowVersion {
+		_, err = fmt.Fprintln(stdout, version.Current().String())
 
-	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer cancel()
+		return err
+	}
 
 	return run(ctx, cfg)
 }
