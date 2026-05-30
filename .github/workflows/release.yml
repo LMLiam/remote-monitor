@@ -83,6 +83,25 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Publish generated release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          notes_args=(repos/${GITHUB_REPOSITORY}/releases/generate-notes)
+          notes_args+=(-f "tag_name=${RELEASE_TAG}")
+
+          previous_tag="$(git tag --sort=-version:refname | awk -v current="$RELEASE_TAG" '
+            $0 == current { found = 1; next }
+            found { print; exit }
+          ')"
+          if [ -n "$previous_tag" ]; then
+            notes_args+=(-f "previous_tag_name=${previous_tag}")
+          fi
+
+          gh api "${notes_args[@]}" --jq .body > release-notes.md
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
+
       - name: Publish Homebrew formula
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
