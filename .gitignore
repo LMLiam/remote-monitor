@@ -1,0 +1,20 @@
+# OS files
+.DS_Store
+
+# Editor and IDE state
+.idea/
+.vscode/
+
+# Local binaries and build output
+/remote-monitor
+/bin/
+/dist/
+*.test
+
+# Coverage and profiling output
+/coverage.out
+/coverage.html
+*.prof
+
+# Temporary local files
+/tmp/
