@@ -51,3 +51,24 @@ go build -o remote-monitor ./cmd/remote-monitor
 ## Security
 
 Please follow [SECURITY.md](SECURITY.md) for sensitive reports. Do not file public issues for vulnerabilities, leaked host details, or exploitable command construction problems.
+
+## GitHub Actions Policy
+
+The repository uses a selected-actions allow-list for GitHub Actions. GitHub-owned actions are allowed, and third-party actions are limited to the sources this project intentionally uses.
+
+Approved GitHub-owned action sources:
+
+- `actions/checkout`
+- `actions/dependency-review-action`
+- `actions/setup-go`
+- `actions/upload-artifact`
+- `github/codeql-action`
+
+Approved third-party action sources:
+
+- `golangci/golangci-lint-action`
+- `ossf/scorecard-action`
+
+Before adding a new action source, maintainers should open a pull request or issue that explains why the action is needed, who maintains it, what permissions it needs, and whether a shell command or existing GitHub-owned action would be simpler. New `uses:` entries must be pinned to a full commit SHA with a nearby version comment. The repository Actions allow-list must be updated before the workflow change merges.
+
+Keep the default workflow token permission at read-only. Workflows should declare `permissions: contents: read` or `permissions: {}` by default, and grant write permissions only at the job level when that job needs them.
