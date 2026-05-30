@@ -86,3 +86,15 @@ go build -o remote-monitor ./cmd/remote-monitor
 ```
 
 The GitHub Actions workflow runs the same native checks.
+
+## Contributing
+
+Contributions are welcome when they fit the SSH-based terminal monitoring scope. Please read [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), and the [Code of Conduct](CODE_OF_CONDUCT.md) before opening larger issues or pull requests.
+
+## Security
+
+Please do not open public issues for sensitive security reports. See [SECURITY.md](SECURITY.md) for supported versions, scope, and reporting guidance.
+
+## License
+
+`remote-monitor` is released under the [MIT License](LICENSE).
