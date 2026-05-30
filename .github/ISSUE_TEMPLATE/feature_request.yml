@@ -1,0 +1,34 @@
+name: Feature request
+description: Suggest an improvement or new capability.
+title: 'feat(area): '
+labels:
+  - 'type:feature'
+  - 'status:needs-triage'
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or opportunity
+      description: What user need does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior, command, metric, or interface you want.
+    validations:
+      required: true
+  - type: textarea
+    id: portability
+    attributes:
+      label: Portability notes
+      description: Which local terminals, remote Linux distributions, or system tools should this support?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
