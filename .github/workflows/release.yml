@@ -77,3 +77,35 @@ jobs:
         run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Homebrew formula
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          test -n "$TAP_GITHUB_TOKEN"
+          version="${RELEASE_TAG#v}"
+          checksums="dist/remote-monitor_${version}_checksums.txt"
+          test -f "$checksums"
+
+          tap_dir="$(mktemp -d)"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TAP_GITHUB_TOKEN}" \
+            clone https://github.com/LMLiam/homebrew-tap.git "$tap_dir"
+
+          scripts/homebrew/generate-formula.sh \
+            "$RELEASE_TAG" \
+            "$checksums" \
+            "$tap_dir/Formula/remote-monitor.rb"
+
+          git -C "$tap_dir" config user.name "LMLiam"
+          git -C "$tap_dir" config user.email "46268350+TheRealEmissions@users.noreply.github.com"
+          git -C "$tap_dir" add Formula/remote-monitor.rb
+          if git -C "$tap_dir" diff --cached --quiet; then
+            echo "Homebrew formula already up to date"
+            exit 0
+          fi
+
+          git -C "$tap_dir" commit -m "brew(remote-monitor): update to ${RELEASE_TAG}"
+          git -C "$tap_dir" \
+            -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${TAP_GITHUB_TOKEN}" \
+            push origin HEAD:main
