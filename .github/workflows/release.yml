@@ -73,6 +73,11 @@ jobs:
       - name: Check GoReleaser config
         run: goreleaser check
 
+      - name: Check Homebrew tap credentials
+        env:
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+        run: test -n "$TAP_GITHUB_TOKEN"
+
       - name: Publish GitHub release
         run: goreleaser release --clean
         env:
