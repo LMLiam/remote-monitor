@@ -1,0 +1,75 @@
+root = true
+
+# Base text-file hygiene for the repository.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# Google Go style delegates formatting to gofmt: tabs, 8-column tab stops,
+# and no hard line-length limit.
+[*.go]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+max_line_length = off
+
+# gofmt/go mod formatting also uses tab-aligned blocks.
+[go.mod]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+max_line_length = off
+
+[go.sum]
+indent_style = tab
+indent_size = tab
+tab_width = 8
+max_line_length = off
+
+# Keep shell scripts aligned with the existing sampler.sh style.
+[*.sh]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+[*.markdown]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Common project/config formats.
+[*.json]
+indent_style = space
+indent_size = 2
+
+[*.yaml]
+indent_style = space
+indent_size = 2
+
+[*.yml]
+indent_style = space
+indent_size = 2
+
+[*.toml]
+indent_style = space
+indent_size = 2
+
+[*.xml]
+indent_style = space
+indent_size = 2
+
+[*.iml]
+indent_style = space
+indent_size = 2
+
+[.gitignore]
+indent_style = space
+indent_size = 2
