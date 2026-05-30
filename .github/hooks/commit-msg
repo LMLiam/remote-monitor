@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="${1:?commit message file is required}"
+hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd "$hook_dir/../.." && pwd)"
+subject="$(sed -n '1p' "$message_file")"
+
+bash "$repo_root/.github/scripts/validate-conventional-title.sh" "$subject"

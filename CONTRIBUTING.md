@@ -15,6 +15,7 @@ Use Go 1.26 or newer. The project intentionally uses native Go tooling and `gola
 
 ```sh
 go mod download
+bash .github/scripts/install-git-hooks.sh
 ```
 
 ## Checks
@@ -41,6 +42,8 @@ go build -o remote-monitor ./cmd/remote-monitor
 ## Pull Requests
 
 - Use the pull request template.
+- Use `verb(area): something` for pull request titles and commit subjects, for example `feat(metrics): add disk pressure summary`.
+- The `main` branch ruleset requires pull requests, required checks, and squash merges. The required `Validate Commit Subjects` check enforces the same commit subject format before merge.
 - Explain user-visible behavior changes and any portability assumptions.
 - Add or update tests for parser, renderer, transport, config, and monitor behavior when practical.
 - Include manual testing notes for terminal rendering or SSH behavior that is hard to cover with unit tests.

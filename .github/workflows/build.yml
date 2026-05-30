@@ -36,6 +36,9 @@ jobs:
             exit 1
           fi
 
+      - name: Test conventional title validator
+        run: bash .github/scripts/test-conventional-title.sh
+
       - name: Vet
         run: go vet ./...
 

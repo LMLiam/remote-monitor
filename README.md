@@ -74,6 +74,13 @@ Useful flags:
 
 ## Development
 
+Install dependencies and the local Git hooks:
+
+```sh
+go mod download
+bash .github/scripts/install-git-hooks.sh
+```
+
 Run the local checks before pushing:
 
 ```sh
