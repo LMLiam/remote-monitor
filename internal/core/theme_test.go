@@ -9,18 +9,21 @@ import (
 func TestCanonicalThemeNameAcceptsWindowsXPAliases(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]string{
-		"windows-xp": core.ThemeWindowsXP,
-		"Windows-XP": core.ThemeWindowsXP,
-		" xp ":       core.ThemeWindowsXP,
-		"winxp":      core.ThemeWindowsXP,
-		"WINXP":      core.ThemeWindowsXP,
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{input: "windows-xp", want: core.ThemeWindowsXP},
+		{input: "Windows-XP", want: core.ThemeWindowsXP},
+		{input: " xp ", want: core.ThemeWindowsXP},
+		{input: "winxp", want: core.ThemeWindowsXP},
+		{input: "WINXP", want: core.ThemeWindowsXP},
 	}
 
-	for input, want := range tests {
-		got := core.CanonicalThemeName(input)
-		if got != want {
-			t.Fatalf("CanonicalThemeName(%q) = %q, want %q", input, got, want)
+	for _, tt := range tests {
+		got := core.CanonicalThemeName(tt.input)
+		if got != tt.want {
+			t.Fatalf("CanonicalThemeName(%q) = %q, want %q", tt.input, got, tt.want)
 		}
 	}
 }
