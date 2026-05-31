@@ -123,6 +123,34 @@ func TestParseConfigAcceptsBasicTheme(t *testing.T) {
 	}
 }
 
+func TestParseConfigAcceptsWindowsXPTheme(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+	t.Setenv("MONITOR_THEME", "")
+
+	cfg, err := config.ParseConfig([]string{testFlagTheme, "winxp", testExampleHost})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.Theme != core.ThemeWindowsXP {
+		t.Fatalf("theme = %q", cfg.Theme)
+	}
+}
+
+func TestParseConfigAcceptsWindowsXPThemeFromEnvironment(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+	t.Setenv("MONITOR_THEME", "xp")
+
+	cfg, err := config.ParseConfig([]string{testExampleHost})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.Theme != core.ThemeWindowsXP {
+		t.Fatalf("theme = %q", cfg.Theme)
+	}
+}
+
 func TestParseConfigFallsBackToAuroraForUnknownThemes(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
 	t.Setenv("MONITOR_THEME", "")

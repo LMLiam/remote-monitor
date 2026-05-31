@@ -15,22 +15,25 @@ func TitleBlock(totalWidth int, statusText string, now time.Time, cfg core.Confi
 	if cfg.NoBanner || cfg.Compact || totalWidth < bannerWidth+titleStatusPadding {
 		titleText := "REMOTE MONITOR"
 
-		return titleStatusLine(titleText, ansi.Ink, statusText, totalWidth)
+		return titleStatusLine(titleText, statusLineColor(cfg), statusText, totalWidth)
 	}
 
 	lines := renderThemeBannerLines(spec, totalWidth, now, cfg)
-	lines = append(lines, titleStatusLine("", ansi.Cyan, statusText, totalWidth))
+	lines = append(lines, titleStatusLine("", statusLineColor(cfg), statusText, totalWidth))
 
 	return strings.Join(lines, "\n")
 }
 
 // DecorateFrame applies theme-specific frame decoration.
 func DecorateFrame(frame string, width int, now time.Time, cfg core.Config) string {
-	if core.CanonicalThemeName(cfg.Theme) != core.ThemeAurora {
+	switch core.CanonicalThemeName(cfg.Theme) {
+	case core.ThemeAurora:
+		return ApplyAuroraBackdrop(frame, width, now, cfg)
+	case core.ThemeWindowsXP:
+		return ApplyWindowsXPFrame(frame, cfg)
+	default:
 		return frame
 	}
-
-	return ApplyAuroraBackdrop(frame, width, now, cfg)
 }
 
 func themeBannerWidth(spec bannerTheme) int {
@@ -74,6 +77,14 @@ func currentBannerPhase(spec bannerTheme, now time.Time) int {
 	}
 
 	return phase
+}
+
+func statusLineColor(cfg core.Config) string {
+	if core.CanonicalThemeName(cfg.Theme) == core.ThemeWindowsXP {
+		return windowsXPInk(cfg)
+	}
+
+	return ansi.Ink
 }
 
 func renderBasicBannerLine(spec bannerTheme, text string, row, phase int, cfg core.Config) string {

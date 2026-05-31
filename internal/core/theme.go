@@ -9,6 +9,8 @@ func CanonicalThemeName(name string) string {
 		return ThemeAurora
 	case ThemeBasic:
 		return ThemeBasic
+	case ThemeWindowsXP, "xp", "winxp":
+		return ThemeWindowsXP
 	default:
 		return ThemeAurora
 	}
