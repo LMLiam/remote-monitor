@@ -80,6 +80,12 @@ Useful flags:
 | `-ssh-server-alive-count` | `MONITOR_SSH_ALIVE_COUNT` | `2` |
 | `-ssh-control-persist` | `MONITOR_SSH_CONTROL_PERSIST` | `30` seconds |
 
+## WSL Host Metrics
+
+When the remote sampler detects WSL, it can call `powershell.exe` or `pwsh.exe` from inside WSL to fill host metrics that Linux paths do not expose. It currently probes Windows CPU name, logical core count, current and max CPU clocks, physical RAM totals and availability, and CPU temperature. Windows thermal zone data is used for `cpu_temp_c` only when the Linux sampler has no CPU temperature.
+
+Set `REMOTE_MONITOR_WSL_HOST_METRICS=0` in the remote WSL environment to disable Windows host probing. Set `REMOTE_MONITOR_WSL_HOST_METRICS_TIMEOUT` to change the PowerShell timeout from the default `2s`.
+
 ## Development
 
 Install dependencies and the local Git hooks:
