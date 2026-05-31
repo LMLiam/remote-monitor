@@ -452,17 +452,37 @@ wsl_host_metrics_enabled() {
   return 0
 }
 
-find_wsl_powershell() {
+find_wsl_powershell_from_candidates() {
   local candidate
 
-  for candidate in powershell.exe pwsh.exe; do
-    if command -v "${candidate}" >/dev/null 2>&1; then
-      command -v "${candidate}"
-      return 0
-    fi
+  for candidate in "$@"; do
+    [ -n "${candidate}" ] || continue
+    case "${candidate}" in
+      */*)
+        if [ -x "${candidate}" ]; then
+          printf '%s\n' "${candidate}"
+          return 0
+        fi
+        ;;
+      *)
+        if command -v "${candidate}" >/dev/null 2>&1; then
+          command -v "${candidate}"
+          return 0
+        fi
+        ;;
+    esac
   done
 
   return 1
+}
+
+find_wsl_powershell() {
+  find_wsl_powershell_from_candidates \
+    powershell.exe \
+    pwsh.exe \
+    '/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe' \
+    '/mnt/c/Program Files/PowerShell/7/pwsh.exe' \
+    '/mnt/c/Program Files/PowerShell/7-preview/pwsh.exe'
 }
 
 json_int_field() {
@@ -525,7 +545,7 @@ read_wsl_windows_host_metrics_json() {
     return
   fi
 
-  powershell_script='$ErrorActionPreference = "SilentlyContinue"; $processors = @(Get-CimInstance -ClassName "Win32_Processor"); $os = Get-CimInstance -ClassName "Win32_OperatingSystem"; $temps = @(Get-CimInstance -Namespace "root/WMI" -ClassName "MSAcpi_ThermalZoneTemperature" | ForEach-Object { [math]::Round(($_.CurrentTemperature / 10) - 273.15) } | Where-Object { $_ -ge 1 -and $_ -le 125 }); $cpuTemp = $null; if ($temps.Count -gt 0) { $cpuTemp = ($temps | Measure-Object -Maximum).Maximum }; $cpuName = $null; $cpuCores = $null; $cpuFreq = $null; $cpuMaxFreq = $null; if ($processors.Count -gt 0) { $cpuName = ($processors | Select-Object -First 1).Name; $cpuCores = ($processors | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum; $cpuFreq = [math]::Round(($processors | Measure-Object -Property CurrentClockSpeed -Average).Average); $cpuMaxFreq = ($processors | Measure-Object -Property MaxClockSpeed -Maximum).Maximum }; $ramTotal = $null; $ramFree = $null; $ramUsed = $null; if ($null -ne $os) { $totalKiB = [double]$os.TotalVisibleMemorySize; $freeKiB = [double]$os.FreePhysicalMemory; if ($totalKiB -gt 0 -and $freeKiB -ge 0) { $ramTotal = [math]::Round($totalKiB / 1024); $ramFree = [math]::Round($freeKiB / 1024); $ramUsed = [math]::Max(0, $ramTotal - $ramFree) } }; [ordered]@{cpu_temp_c=$cpuTemp; cpu_name=$cpuName; cpu_cores=$cpuCores; cpu_freq_mhz=$cpuFreq; cpu_max_freq_mhz=$cpuMaxFreq; ram_used_mib=$ramUsed; ram_total_mib=$ramTotal; ram_available_mib=$ramFree; ram_free_mib=$ramFree} | ConvertTo-Json -Compress'
+  powershell_script='$ErrorActionPreference = "SilentlyContinue"; $processors = @(Get-CimInstance -ClassName "Win32_Processor"); $os = Get-CimInstance -ClassName "Win32_OperatingSystem"; $cpuTemp = $null; foreach ($sensorNamespace in @("root/LibreHardwareMonitor","root/OpenHardwareMonitor")) { $sensorValues = @(Get-CimInstance -Namespace $sensorNamespace -ClassName "Sensor" | Where-Object { ($_.SensorType -eq "Temperature" -or $_.SensorType -eq 2) -and (($_.Name -match "CPU|Package|Core|Tctl|Tdie|CCD") -or ($_.Identifier -match "/cpu/|/temperature/")) -and ($_.Value -ge 1 -and $_.Value -le 125) } | ForEach-Object { [math]::Round([double]$_.Value) }); if ($sensorValues.Count -gt 0) { $cpuTemp = ($sensorValues | Measure-Object -Maximum).Maximum; break } }; $cpuName = $null; $cpuCores = $null; $cpuFreq = $null; $cpuMaxFreq = $null; if ($processors.Count -gt 0) { $cpuName = ($processors | Select-Object -First 1).Name; $cpuCores = ($processors | Measure-Object -Property NumberOfLogicalProcessors -Sum).Sum; $cpuFreq = [math]::Round(($processors | Measure-Object -Property CurrentClockSpeed -Average).Average); $cpuMaxFreq = ($processors | Measure-Object -Property MaxClockSpeed -Maximum).Maximum }; $ramTotal = $null; $ramFree = $null; $ramUsed = $null; if ($null -ne $os) { $totalKiB = [double]$os.TotalVisibleMemorySize; $freeKiB = [double]$os.FreePhysicalMemory; if ($totalKiB -gt 0 -and $freeKiB -ge 0) { $ramTotal = [math]::Round($totalKiB / 1024); $ramFree = [math]::Round($freeKiB / 1024); $ramUsed = [math]::Max(0, $ramTotal - $ramFree) } }; [ordered]@{cpu_temp_c=$cpuTemp; cpu_name=$cpuName; cpu_cores=$cpuCores; cpu_freq_mhz=$cpuFreq; cpu_max_freq_mhz=$cpuMaxFreq; ram_used_mib=$ramUsed; ram_total_mib=$ramTotal; ram_available_mib=$ramFree; ram_free_mib=$ramFree} | ConvertTo-Json -Compress'
   if ! output="$(timeout "${powershell_timeout}" "${powershell_path}" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "${powershell_script}" 2>/dev/null)"; then
     printf '\n'
     return
