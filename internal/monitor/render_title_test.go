@@ -264,6 +264,34 @@ func TestWindowsXPThemeHonorsNoTrueColorFlag(t *testing.T) {
 	}
 }
 
+func TestWindowsXPFrameDecorationPreservesSeverityColors(t *testing.T) {
+	t.Parallel()
+
+	frame := strings.Join([]string{
+		ansi.Green,
+		"live ",
+		ansi.Yellow,
+		"stale ",
+		ansi.Red,
+		"down ",
+		ansi.BorderColor,
+		"border",
+	}, "")
+	got := banner.ApplyWindowsXPFrame(frame, testConfig(func(cfg *core.Config) {
+		cfg.Theme = core.ThemeWindowsXP
+		cfg.DisableTrueColor = true
+	}))
+
+	for _, color := range []string{ansi.Green, ansi.Yellow, ansi.Red} {
+		if !strings.Contains(got, color) {
+			t.Fatalf("expected severity color %q to survive windows-xp frame decoration in %q", color, got)
+		}
+	}
+	if strings.Contains(got, ansi.BorderColor) {
+		t.Fatalf("expected chrome border color to be replaced in %q", got)
+	}
+}
+
 func TestWindowsXPTitleTextAndWidthsStayStableAcrossAnimationFrames(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("TERM", "xterm-ghostty")
