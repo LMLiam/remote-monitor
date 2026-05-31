@@ -11,6 +11,7 @@ permissions:
 
 env:
   GORELEASER_VERSION: v2.16.0
+  SYFT_VERSION: v1.38.0
 
 jobs:
   snapshot:
@@ -32,7 +33,10 @@ jobs:
           cache: true
 
       - name: Install GoReleaser
-        run: go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
+        run: go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
+
+      - name: Install Syft
+        run: go install "github.com/anchore/syft/cmd/syft@${SYFT_VERSION}"
 
       - name: Check GoReleaser config
         run: goreleaser check
@@ -54,7 +58,9 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
+      attestations: write
       contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -68,7 +74,10 @@ jobs:
           cache: true
 
       - name: Install GoReleaser
-        run: go install github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}
+        run: go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
+
+      - name: Install Syft
+        run: go install "github.com/anchore/syft/cmd/syft@${SYFT_VERSION}"
 
       - name: Check GoReleaser config
         run: goreleaser check
@@ -83,12 +92,28 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare release metadata
+        id: release-metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          version="${RELEASE_TAG#v}"
+          checksums="dist/remote-monitor_${version}_checksums.txt"
+          test -f "$checksums"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "checksums=$checksums" >> "$GITHUB_OUTPUT"
+
+      - name: Attest release artifacts
+        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        with:
+          subject-checksums: ${{ steps.release-metadata.outputs.checksums }}
+
       - name: Publish generated release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          notes_args=(repos/${GITHUB_REPOSITORY}/releases/generate-notes)
+          notes_args=("repos/${GITHUB_REPOSITORY}/releases/generate-notes")
           notes_args+=(-f "tag_name=${RELEASE_TAG}")
 
           previous_tag="$(git tag --sort=-version:refname | awk -v current="$RELEASE_TAG" '
@@ -106,10 +131,10 @@ jobs:
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_VERSION: ${{ steps.release-metadata.outputs.version }}
         run: |
           test -n "$TAP_GITHUB_TOKEN"
-          version="${RELEASE_TAG#v}"
-          checksums="dist/remote-monitor_${version}_checksums.txt"
+          checksums="dist/remote-monitor_${RELEASE_VERSION}_checksums.txt"
           test -f "$checksums"
 
           tap_dir="$(mktemp -d)"

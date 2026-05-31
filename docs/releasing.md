@@ -38,9 +38,11 @@ git push origin v0.1.0
 ```
 
 The tag push starts `.github/workflows/release.yml`, which creates the GitHub
-Release. GoReleaser publishes the archives and checksums first; the workflow
-then replaces the release body with GitHub-generated notes so merged pull
-requests are listed with their authors and full changelog links.
+Release. GoReleaser publishes the archives, checksums, and SPDX JSON SBOMs
+first. The workflow then publishes GitHub build-provenance attestations for the
+checksum-listed release artifacts and replaces the release body with
+GitHub-generated notes so merged pull requests are listed with their authors
+and full changelog links.
 
 The release job also generates the `remote-monitor` formula from GoReleaser's
 checksum file and pushes it to the `LMLiam/homebrew-tap` repository. Configure
@@ -55,6 +57,43 @@ After the tap update lands, users can install with:
 brew install LMLiam/tap/remote-monitor
 ```
 
+## Verify Downloaded Artifacts
+
+Download one archive, its checksum file, and its SBOM from the release page:
+
+```sh
+tag=v0.1.2
+version="${tag#v}"
+repo=LMLiam/remote-monitor
+archive="remote-monitor_${version}_linux_amd64.tar.gz"
+sbom="${archive}.sbom.spdx.json"
+
+gh release download "$tag" --repo "$repo" \
+  --pattern "$archive" \
+  --pattern "remote-monitor_${version}_checksums.txt" \
+  --pattern "$sbom"
+```
+
+Verify the archive checksum:
+
+```sh
+grep "  ${archive}$" "remote-monitor_${version}_checksums.txt" | shasum -a 256 -c -
+```
+
+Inspect the SBOM enough to confirm it is a non-empty SPDX JSON document:
+
+```sh
+test -s "$sbom"
+grep -q '"spdxVersion"' "$sbom"
+grep -q '"packages"' "$sbom"
+```
+
+Verify the GitHub build-provenance attestation for the downloaded archive:
+
+```sh
+gh attestation verify "$archive" --repo "$repo"
+```
+
 ## Verify
 
 After the workflow finishes:
@@ -63,12 +102,15 @@ After the workflow finishes:
 - Confirm the release notes use GitHub's generated "What's Changed" format with
   pull request author attribution.
 - Confirm the checksum file lists every archive.
+- Confirm each archive has a matching `.sbom.spdx.json` release asset.
+- Confirm GitHub build-provenance attestations verify for at least one
+  downloaded archive.
 - Confirm `LMLiam/homebrew-tap` contains `Formula/remote-monitor.rb` for the
   release tag.
 - Run `brew install LMLiam/tap/remote-monitor`.
 - Run `brew test LMLiam/tap/remote-monitor`.
 - Download one Linux archive and one macOS archive.
+- Run the checksum, SBOM, and attestation commands above for at least one
+  archive.
 - Run `remote-monitor --help`.
 - Run `remote-monitor --version` and confirm it matches the tag.
-
-Supply-chain provenance, SBOMs, signing, and attestations belong in issue #5.
