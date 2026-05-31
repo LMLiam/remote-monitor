@@ -93,10 +93,16 @@ func TestRemoteSamplerReadsWindowsHostMetricsFromPowerShellJSON(t *testing.T) {
 	if strings.Contains(args, "MSAcpi_ThermalZoneTemperature") {
 		t.Fatalf("expected PowerShell args to avoid ACPI thermal zones as CPU temperature, got %q", args)
 	}
+	if strings.Contains(args, `$_.Identifier -match "/cpu/|/temperature/"`) {
+		t.Fatalf("expected PowerShell args to avoid accepting any hardware-monitor temperature identifier as CPU temp, got %q", args)
+	}
 	for _, want := range []string{"-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance", "Win32_Processor", "Win32_OperatingSystem", "root/LibreHardwareMonitor", "root/OpenHardwareMonitor"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("expected PowerShell args to contain %q, got %q", want, args)
 		}
+	}
+	if want := `$_.Identifier -match "/(cpu|intelcpu|amdcpu)(/|$)" -and $_.Identifier -match "/temperature/"`; !strings.Contains(args, want) {
+		t.Fatalf("expected PowerShell args to require CPU and temperature identifier components, got %q", args)
 	}
 }
 
