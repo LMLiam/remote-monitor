@@ -90,10 +90,31 @@ func TestRemoteSamplerReadsWindowsHostMetricsFromPowerShellJSON(t *testing.T) {
 		t.Fatalf("read captured PowerShell args: %v", err)
 	}
 	args := string(argsBytes)
-	for _, want := range []string{"-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance", "Win32_Processor", "Win32_OperatingSystem", "MSAcpi_ThermalZoneTemperature"} {
+	if strings.Contains(args, "MSAcpi_ThermalZoneTemperature") {
+		t.Fatalf("expected PowerShell args to avoid ACPI thermal zones as CPU temperature, got %q", args)
+	}
+	for _, want := range []string{"-NoProfile", "-NonInteractive", "-Command", "Get-CimInstance", "Win32_Processor", "Win32_OperatingSystem", "root/LibreHardwareMonitor", "root/OpenHardwareMonitor"} {
 		if !strings.Contains(args, want) {
 			t.Fatalf("expected PowerShell args to contain %q, got %q", want, args)
 		}
+	}
+}
+
+func TestRemoteSamplerFindsWindowsPowerShellOutsidePath(t *testing.T) {
+	t.Parallel()
+
+	fakePowerShellDir := filepath.Join(t.TempDir(), "WindowsPowerShell")
+	if err := os.MkdirAll(fakePowerShellDir, 0o700); err != nil {
+		t.Fatalf("create fake PowerShell directory: %v", err)
+	}
+	fakePowerShell := filepath.Join(fakePowerShellDir, "powershell.exe")
+	writeExecutable(t, fakePowerShell, "#!/bin/sh\nprintf '{}'\n")
+
+	got := runSamplerSnippet(t, "find_wsl_powershell_from_candidates powershell.exe "+shellQuote(fakePowerShell), map[string]string{
+		testPathEnv: t.TempDir(),
+	})
+	if got != fakePowerShell {
+		t.Fatalf("expected absolute PowerShell fallback path, got %q", got)
 	}
 }
 
