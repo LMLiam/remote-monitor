@@ -139,7 +139,7 @@ func TestParseConfigAcceptsWindowsXPTheme(t *testing.T) {
 
 func TestParseConfigAcceptsWindowsXPThemeFromEnvironment(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
-	t.Setenv("MONITOR_THEME", "xp")
+	t.Setenv("MONITOR_THEME", core.ThemeWindowsXP)
 
 	cfg, err := config.ParseConfig([]string{testExampleHost})
 	if err != nil {
