@@ -27,6 +27,8 @@ const (
 var liveSummaryPattern = regexp.MustCompile(`\| state live \| CPU [0-9]+% \| RAM [0-9]+ / [1-9][0-9]* MiB \|`)
 
 func TestRemoteMonitorStreamsSamplesOverSSH(t *testing.T) {
+	t.Parallel()
+
 	requireCommand(t, "docker")
 	realSSH := requireCommand(t, "ssh")
 	requireCommand(t, "ssh-keygen")
@@ -40,19 +42,21 @@ func TestRemoteMonitorStreamsSamplesOverSSH(t *testing.T) {
 	dockerCtx, dockerCancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer dockerCancel()
 
-	commandOutput(t, dockerCtx, repo, nil, "docker", "build", "-t", imageTag, filepath.Join(repo, "tests/e2e/ssh-target"))
+	commandOutput(dockerCtx, t, repo, "docker", "build", "-t", imageTag, filepath.Join(repo, "tests", "e2e", "ssh-target"))
 	t.Cleanup(func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		// #nosec G204 -- the test controls the generated Docker fixture names.
 		_ = exec.CommandContext(cleanupCtx, "docker", "rm", "-f", containerName).Run()
+		// #nosec G204 -- the test controls the generated Docker fixture names.
 		_ = exec.CommandContext(cleanupCtx, "docker", "image", "rm", "-f", imageTag).Run()
 	})
 
 	keyPath := filepath.Join(tmp, "id_ed25519")
-	commandOutput(t, dockerCtx, repo, nil, "ssh-keygen", "-t", "ed25519", "-N", "", "-f", keyPath, "-C", "remote-monitor-e2e")
+	commandOutput(dockerCtx, t, repo, "ssh-keygen", "-t", "ed25519", "-N", "", "-f", keyPath, "-C", "remote-monitor-e2e")
 	publicKey := strings.TrimSpace(readFile(t, keyPath+".pub"))
 
-	containerID := strings.TrimSpace(commandOutput(t, dockerCtx, repo, nil, "docker", "run", "-d", "--rm",
+	containerID := strings.TrimSpace(commandOutput(dockerCtx, t, repo, "docker", "run", "-d", "--rm",
 		"--name", containerName,
 		"-e", "AUTHORIZED_KEY="+publicKey,
 		"-p", "127.0.0.1::22",
@@ -62,7 +66,7 @@ func TestRemoteMonitorStreamsSamplesOverSSH(t *testing.T) {
 		t.Fatal("docker run returned an empty container id")
 	}
 
-	host, port := dockerHostPort(t, dockerCtx, repo, containerName)
+	host, port := dockerHostPort(dockerCtx, t, repo, containerName)
 	sshDir := filepath.Join(tmp, ".ssh")
 	if err := os.MkdirAll(sshDir, 0o700); err != nil {
 		t.Fatalf("create ssh dir: %v", err)
@@ -88,7 +92,7 @@ func TestRemoteMonitorStreamsSamplesOverSSH(t *testing.T) {
 	wrapperBin := writeSSHWrapper(t, tmp)
 
 	binaryPath := filepath.Join(tmp, "remote-monitor")
-	commandOutput(t, dockerCtx, repo, nil, "go", "build", "-o", binaryPath, "./cmd/remote-monitor")
+	commandOutput(dockerCtx, t, repo, "go", "build", "-o", binaryPath, "./cmd/remote-monitor")
 
 	output, stderr, ok := waitForLiveMonitorLine(t, repo, binaryPath, tmp, wrapperBin, realSSH, sshConfig)
 	if !ok {
@@ -121,12 +125,12 @@ func repoRoot(t *testing.T) string {
 		t.Fatal("resolve caller path")
 	}
 
-	return filepath.Clean(filepath.Join(filepath.Dir(file), "../.."))
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", ".."))
 }
 
-func dockerHostPort(t *testing.T, ctx context.Context, repo, containerName string) (host string, port string) {
+func dockerHostPort(ctx context.Context, t *testing.T, repo, containerName string) (host, port string) {
 	t.Helper()
-	output := strings.TrimSpace(commandOutput(t, ctx, repo, nil, "docker", "port", containerName, "22/tcp"))
+	output := strings.TrimSpace(commandOutput(ctx, t, repo, "docker", "port", containerName, "22/tcp"))
 	host, port, err := net.SplitHostPort(output)
 	if err != nil {
 		t.Fatalf("parse docker port %q: %v", output, err)
@@ -152,6 +156,7 @@ func waitForHostKey(t *testing.T, repo, host, port string) string {
 	}
 
 	t.Fatalf("timed out waiting for ssh host key from %s:%s", host, port)
+
 	return ""
 }
 
@@ -179,7 +184,7 @@ func waitForLiveMonitorLine(
 	wrapperBin string,
 	realSSH string,
 	sshConfig string,
-) (stdoutText string, stderrText string, ok bool) {
+) (stdoutText, stderrText string, ok bool) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -232,6 +237,7 @@ func waitForLiveMonitorLine(
 		if liveSummaryPattern.MatchString(line) {
 			cancel()
 			_ = cmd.Wait()
+
 			return strings.Join(lines, "\n"), stderr.String(), true
 		}
 	}
@@ -243,9 +249,9 @@ func waitForLiveMonitorLine(
 	return strings.Join(lines, "\n"), stderr.String(), false
 }
 
-func commandOutput(t *testing.T, ctx context.Context, dir string, env []string, name string, args ...string) string {
+func commandOutput(ctx context.Context, t *testing.T, dir, name string, args ...string) string {
 	t.Helper()
-	output, err := commandOutputErr(ctx, dir, env, name, args...)
+	output, err := commandOutputErr(ctx, dir, nil, name, args...)
 	if err != nil {
 		t.Fatalf("%s %s failed: %v\n%s", name, strings.Join(args, " "), err, output)
 	}
@@ -254,6 +260,7 @@ func commandOutput(t *testing.T, ctx context.Context, dir string, env []string, 
 }
 
 func commandOutputErr(ctx context.Context, dir string, env []string, name string, args ...string) (string, error) {
+	// #nosec G204 -- integration-test commands and arguments are fixed by the test.
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = dir
 	if env != nil {
@@ -267,7 +274,7 @@ func commandOutputErr(ctx context.Context, dir string, env []string, name string
 	return output.String(), err
 }
 
-func commandOutputAllowError(dir string, name string, args ...string) string {
+func commandOutputAllowError(dir, name string, args ...string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	output, err := commandOutputErr(ctx, dir, nil, name, args...)
@@ -280,6 +287,7 @@ func commandOutputAllowError(dir string, name string, args ...string) string {
 
 func readFile(t *testing.T, path string) string {
 	t.Helper()
+	// #nosec G304 -- callers pass repository/test temp paths created by this test.
 	content, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
@@ -306,6 +314,7 @@ func writeSSHWrapper(t *testing.T, tmp string) string {
 set -euo pipefail
 exec "${REMOTE_MONITOR_E2E_REAL_SSH}" -F "${REMOTE_MONITOR_E2E_SSH_CONFIG}" "$@"
 `
+	// #nosec G306 -- the wrapper must be executable, and it lives in t.TempDir.
 	if err := os.WriteFile(wrapperPath, []byte(wrapper), 0o700); err != nil {
 		t.Fatalf("write ssh wrapper: %v", err)
 	}

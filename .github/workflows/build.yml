@@ -29,7 +29,7 @@ jobs:
 
       - name: Check formatting
         run: |
-          unformatted="$(gofmt -l ./cmd ./internal)"
+          unformatted="$(gofmt -l ./cmd ./internal ./tests)"
           if [ -n "$unformatted" ]; then
             echo "Go files need gofmt:"
             echo "$unformatted"
@@ -40,7 +40,7 @@ jobs:
         run: bash .github/scripts/test-conventional-title.sh
 
       - name: Vet
-        run: go vet ./...
+        run: go vet -tags=integration ./...
 
       - name: Test
         run: go test -tags=integration ./...
@@ -49,6 +49,7 @@ jobs:
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9
         with:
           version: v2.12.2
+          args: --build-tags=integration
 
       - name: Compile
         run: go build -o remote-monitor ./cmd/remote-monitor
