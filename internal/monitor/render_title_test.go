@@ -140,8 +140,8 @@ func TestThemeBannersUseDistinctArtAndPalette(t *testing.T) {
 	if firstBannerColorEscape(rendered[core.ThemeBasic]) == firstBannerColorEscape(rendered[core.ThemeAurora]) {
 		t.Fatal("expected aurora and basic banners to use different starting palette colors")
 	}
-	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeWindowsXP]), `/\  == \`) {
-		t.Fatalf("expected windows-xp banner to use the provided wordmark art, got %q", ansi.StripANSI(rendered[core.ThemeWindowsXP]))
+	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeWindowsXP]), `[ XP ]  ____  _____`) {
+		t.Fatalf("expected windows-xp banner to use the XP-inspired wordmark art, got %q", ansi.StripANSI(rendered[core.ThemeWindowsXP]))
 	}
 	if ansi.StripANSI(rendered[core.ThemeWindowsXP]) == ansi.StripANSI(rendered[core.ThemeBasic]) {
 		t.Fatal("expected windows-xp banner art to differ from basic")
@@ -154,14 +154,14 @@ func TestThemeBannersUseDistinctArtAndPalette(t *testing.T) {
 	}
 }
 
-func TestWindowsXPBannerUsesProvidedWordmarkArt(t *testing.T) {
+func TestWindowsXPBannerUsesXPInspiredWordmarkArt(t *testing.T) {
 	t.Parallel()
 
 	lines := banner.WindowsXPBannerLines()
 	if len(lines) != 5 {
 		t.Fatalf("windows-xp banner line count = %d, want 5", len(lines))
 	}
-	if strings.TrimRight(lines[0], " ") != ` ______     ______     __    __     ______     ______   ______        __    __     ______     __   __     __     ______   ______     ______` {
+	if strings.TrimRight(lines[0], " ") != `[ XP ]  ____  _____ __  __  ___ _____ _____   __  __  ___  _   _ ___ _____ ___  ____   [ XP ]` {
 		t.Fatalf("windows-xp banner first line changed: %q", lines[0])
 	}
 	for rowIdx, line := range lines {
