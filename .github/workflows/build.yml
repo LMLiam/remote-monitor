@@ -39,6 +39,11 @@ jobs:
       - name: Test conventional title validator
         run: bash .github/scripts/test-conventional-title.sh
 
+      - name: Test release helper scripts
+        run: |
+          bash .github/scripts/test-next-release-tag.sh
+          bash .github/scripts/test-verify-main-checks.sh
+
       - name: Vet
         run: go vet -tags=integration ./...
 
