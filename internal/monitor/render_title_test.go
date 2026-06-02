@@ -38,6 +38,44 @@ func TestBannerPaletteIsDenseEnoughForSmoothMotion(t *testing.T) {
 	}
 }
 
+func TestBasicBannerUsesConfiguredUnicodeArt(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		` ______     ______     __    __     ______     ______   ______        __    __     ______     __   __     __     ______   ______     ______`,
+		`/\  == \   /\  ___\   /\ "-./  \   /\  __ \   /\__  _\ /\  ___\      /\ "-./  \   /\  __ \   /\ "-.\ \   /\ \   /\__  _\ /\  __ \   /\  == \`,
+		`\ \  __<   \ \  __\   \ \ \-./\ \  \ \ \/\ \  \/_/\ \/ \ \  __\      \ \ \-./\ \  \ \ \/\ \  \ \ \-.  \  \ \ \  \/_/\ \/ \ \ \/\ \  \ \  __<`,
+		` \ \_\ \_\  \ \_____\  \ \_\ \ \_\  \ \_____\    \ \_\  \ \_____\     \ \_\ \ \_\  \ \_____\  \ \_\\"\_\  \ \_\    \ \_\  \ \_____\  \ \_\ \_\`,
+		`  \/_/ /_/   \/_____/   \/_/  \/_/   \/_____/     \/_/   \/_____/      \/_/  \/_/   \/_____/   \/_/ \/_/   \/_/     \/_/   \/_____/   \/_/ /_/`,
+	}
+
+	got := banner.BasicBannerLines()
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("basic banner art changed unexpectedly\nwant:\n%s\n\ngot:\n%s", strings.Join(want, "\n"), strings.Join(got, "\n"))
+	}
+}
+
+func TestAuroraBannerUsesExistingUnicodeArt(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		` ██▀███  ▓█████  ███▄ ▄███▓ ▒█████  ▄▄▄█████▓▓█████     ███▄ ▄███▓ ▒█████   ███▄    █  ██▓▄▄▄█████▓ ▒█████   ██▀███`,
+		`▓██ ▒ ██▒▓█   ▀ ▓██▒▀█▀ ██▒▒██▒  ██▒▓  ██▒ ▓▒▓█   ▀    ▓██▒▀█▀ ██▒▒██▒  ██▒ ██ ▀█   █ ▓██▒▓  ██▒ ▓▒▒██▒  ██▒▓██ ▒ ██▒`,
+		`▓██ ░▄█ ▒▒███   ▓██    ▓██░▒██░  ██▒▒ ▓██░ ▒░▒███      ▓██    ▓██░▒██░  ██▒▓██  ▀█ ██▒▒██▒▒ ▓██░ ▒░▒██░  ██▒▓██ ░▄█ ▒`,
+		`▒██▀▀█▄  ▒▓█  ▄ ▒██    ▒██ ▒██   ██░░ ▓██▓ ░ ▒▓█  ▄    ▒██    ▒██ ▒██   ██░▓██▒  ▐▌██▒░██░░ ▓██▓ ░ ▒██   ██░▒██▀▀█▄`,
+		`░██▓ ▒██▒░▒████▒▒██▒   ░██▒░ ████▓▒░  ▒██▒ ░ ░▒████▒   ▒██▒   ░██▒░ ████▓▒░▒██░   ▓██░░██░  ▒██▒ ░ ░ ████▓▒░░██▓ ▒██▒`,
+		`░ ▒▓ ░▒▓░░░ ▒░ ░░ ▒░   ░  ░░ ▒░▒░▒░   ▒ ░░   ░░ ▒░ ░   ░ ▒░   ░  ░░ ▒░▒░▒░ ░ ▒░   ▒ ▒ ░▓    ▒ ░░   ░ ▒░▒░▒░ ░ ▒▓ ░▒▓░`,
+		`  ░▒ ░ ▒░ ░ ░  ░░  ░      ░  ░ ▒ ▒░     ░     ░ ░  ░   ░  ░      ░  ░ ▒ ▒░ ░ ░░   ░ ▒░ ▒ ░    ░      ░ ▒ ▒░   ░▒ ░ ▒░`,
+		`  ░░   ░    ░   ░      ░   ░ ░ ░ ▒    ░         ░      ░      ░   ░ ░ ░ ▒     ░   ░ ░  ▒ ░  ░      ░ ░ ░ ▒    ░░   ░`,
+		`   ░        ░  ░       ░       ░ ░              ░  ░          ░       ░ ░           ░  ░               ░ ░     ░`,
+	}
+
+	got := trimRightLines(banner.AuroraFaceLines())
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("aurora banner art regressed\nwant:\n%s\n\ngot:\n%s", strings.Join(want, "\n"), strings.Join(got, "\n"))
+	}
+}
+
 func TestAnimatedTitleUsesSingleColorPerBannerRow(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("TERM", "xterm-ghostty")
@@ -63,11 +101,11 @@ func TestAnimatedTitleUsesColorBandsAcrossRows(t *testing.T) {
 	title := banner.TitleBlock(170, status, time.Unix(0, 0), testConfig(func(cfg *core.Config) { cfg.Theme = core.ThemeBasic }))
 	lines := strings.Split(title, "\n")
 
-	if len(lines) < 6 {
+	if len(lines) < len(banner.BasicBannerLines()) {
 		t.Fatalf("title has too few lines: %d", len(lines))
 	}
 
-	for idx := 0; idx < 6; idx += 2 {
+	for idx := 0; idx+1 < len(banner.BasicBannerLines()); idx += 2 {
 		if firstBannerColorEscape(lines[idx]) != firstBannerColorEscape(lines[idx+1]) {
 			t.Fatalf("expected banner rows %d and %d to share the same color band", idx, idx+1)
 		}
@@ -85,8 +123,8 @@ func TestThemeBannersUseDistinctArtAndPalette(t *testing.T) {
 		rendered[theme] = title
 	}
 
-	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeBasic]), "██████╗") {
-		t.Fatalf("expected basic banner to keep the current block art, got %q", ansi.StripANSI(rendered[core.ThemeBasic]))
+	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeBasic]), ` ______     ______`) {
+		t.Fatalf("expected basic banner to keep the configured Unicode art, got %q", ansi.StripANSI(rendered[core.ThemeBasic]))
 	}
 
 	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeAurora]), "██▀███  ▓█████  ███▄ ▄███▓") {
@@ -496,4 +534,13 @@ func assertRenderedLinesWidth(t *testing.T, rendered string, width int) {
 			t.Fatalf("line %d width = %d, want %d in %q", idx, got, width, line)
 		}
 	}
+}
+
+func trimRightLines(lines []string) []string {
+	trimmed := make([]string, len(lines))
+	for idx, line := range lines {
+		trimmed[idx] = strings.TrimRight(line, " ")
+	}
+
+	return trimmed
 }
