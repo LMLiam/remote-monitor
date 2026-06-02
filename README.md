@@ -8,7 +8,7 @@ Terminal UI for monitoring a remote Linux host over SSH.
 
 ## Features
 
-- Live Bubble Tea dashboard with aurora and basic themes.
+- Live Bubble Tea dashboard with aurora, basic, and Windows XP-inspired themes.
 - Non-interactive text output when stdout is not a TTY.
 - SSH reconnects with keepalive and control socket reuse.
 - Rolling history for load, pressure, memory, disks, network, GPU, and temperatures.
@@ -52,6 +52,7 @@ Pass the SSH target as a positional argument or with `-host`.
 remote-monitor user@example-host
 remote-monitor -host gpu-box -interval 2
 remote-monitor -theme basic -compact user@example-host
+remote-monitor -theme windows-xp user@example-host
 ```
 
 You can also set `REMOTE_MONITOR_HOST` and run without a host argument.
@@ -73,7 +74,7 @@ Useful flags:
 | `-fps` | `MONITOR_FPS` | `12` |
 | `-compact` | `MONITOR_COMPACT` | `false` |
 | `-no-banner` | `MONITOR_NO_BANNER` | `false` |
-| `-theme` | `MONITOR_THEME` | `aurora` |
+| `-theme` | `MONITOR_THEME` | `aurora` (`aurora`, `basic`, `windows-xp`; aliases: `xp`, `winxp`) |
 | `-no-truecolor` | `MONITOR_NO_TRUECOLOR` | `false` |
 | `-ssh-connect-timeout` | `MONITOR_SSH_CONNECT_TIMEOUT` | `5` seconds |
 | `-ssh-server-alive` | `MONITOR_SSH_ALIVE_INTERVAL` | `5` seconds |

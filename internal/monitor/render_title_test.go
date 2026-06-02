@@ -14,7 +14,7 @@ func TestAnimatedTitleChangesColorButNotText(t *testing.T) {
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("TERM", "xterm-ghostty")
 	status := ansi.Colorize(ansi.Green, "● LIVE")
-	for _, theme := range []string{core.ThemeAurora, core.ThemeBasic} {
+	for _, theme := range []string{core.ThemeAurora, core.ThemeBasic, core.ThemeWindowsXP} {
 		first := banner.TitleBlock(170, status, time.Unix(0, 0), testConfig(func(cfg *core.Config) { cfg.Theme = theme }))
 		second := banner.TitleBlock(170, status, time.Unix(0, 100*int64(time.Millisecond)), testConfig(func(cfg *core.Config) { cfg.Theme = theme }))
 
@@ -118,7 +118,7 @@ func TestThemeBannersUseDistinctArtAndPalette(t *testing.T) {
 	status := ansi.Colorize(ansi.Green, "● LIVE")
 
 	rendered := map[string]string{}
-	for _, theme := range []string{core.ThemeBasic, core.ThemeAurora} {
+	for _, theme := range []string{core.ThemeBasic, core.ThemeAurora, core.ThemeWindowsXP} {
 		title := banner.TitleBlock(170, status, time.Unix(0, 0), testConfig(func(cfg *core.Config) { cfg.Theme = theme }))
 		rendered[theme] = title
 	}
@@ -139,6 +139,35 @@ func TestThemeBannersUseDistinctArtAndPalette(t *testing.T) {
 
 	if firstBannerColorEscape(rendered[core.ThemeBasic]) == firstBannerColorEscape(rendered[core.ThemeAurora]) {
 		t.Fatal("expected aurora and basic banners to use different starting palette colors")
+	}
+	if !strings.Contains(ansi.StripANSI(rendered[core.ThemeWindowsXP]), `[ XP ]  ____  _____`) {
+		t.Fatalf("expected windows-xp banner to use the XP-inspired wordmark art, got %q", ansi.StripANSI(rendered[core.ThemeWindowsXP]))
+	}
+	if ansi.StripANSI(rendered[core.ThemeWindowsXP]) == ansi.StripANSI(rendered[core.ThemeBasic]) {
+		t.Fatal("expected windows-xp banner art to differ from basic")
+	}
+	if ansi.StripANSI(rendered[core.ThemeWindowsXP]) == ansi.StripANSI(rendered[core.ThemeAurora]) {
+		t.Fatal("expected windows-xp banner art to differ from aurora")
+	}
+	if firstBannerColorEscape(rendered[core.ThemeWindowsXP]) == firstBannerColorEscape(rendered[core.ThemeAurora]) {
+		t.Fatal("expected windows-xp and aurora banners to use different starting palette colors")
+	}
+}
+
+func TestWindowsXPBannerUsesXPInspiredWordmarkArt(t *testing.T) {
+	t.Parallel()
+
+	lines := banner.WindowsXPBannerLines()
+	if len(lines) != 5 {
+		t.Fatalf("windows-xp banner line count = %d, want 5", len(lines))
+	}
+	if strings.TrimRight(lines[0], " ") != `[ XP ]  ____  _____ __  __  ___ _____ _____   __  __  ___  _   _ ___ _____ ___  ____   [ XP ]` {
+		t.Fatalf("windows-xp banner first line changed: %q", lines[0])
+	}
+	for rowIdx, line := range lines {
+		if got := ansi.VisibleLen(line); got != ansi.VisibleLen(lines[0]) {
+			t.Fatalf("windows-xp banner row %d width = %d, want %d", rowIdx, got, ansi.VisibleLen(lines[0]))
+		}
 	}
 }
 
@@ -223,6 +252,131 @@ func TestAuroraFrameAppliesBackdropBehindDashboard(t *testing.T) {
 	basicFrame := render.Frame(state, 176, 92)
 	if strings.Contains(basicFrame, "\x1b[48;2;") {
 		t.Fatal("expected basic frame to avoid aurora truecolor backdrop fills")
+	}
+}
+
+func TestWindowsXPFrameRestylesDashboardSurface(t *testing.T) {
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("TERM", "xterm-ghostty")
+	state := testTUIState()
+	state.Cfg.Theme = core.ThemeWindowsXP
+	xpFrame := render.Frame(state, 176, 92)
+
+	if !strings.Contains(xpFrame, "\x1b[48;2;") {
+		t.Fatal("expected windows-xp frame to include truecolor surface fills")
+	}
+	if strings.Contains(xpFrame, ansi.BorderColor) {
+		t.Fatal("expected windows-xp frame to replace the default border color")
+	}
+	if !strings.Contains(ansi.StripANSI(xpFrame), core.ThemeWindowsXP) {
+		t.Fatalf("expected frame mode text to include %q", core.ThemeWindowsXP)
+	}
+
+	state.Cfg.Theme = core.ThemeBasic
+	basicFrame := render.Frame(state, 176, 92)
+	if xpFrame == basicFrame {
+		t.Fatal("expected windows-xp frame to differ from basic")
+	}
+}
+
+func TestWindowsXPThemeHonorsNoTrueColorFlag(t *testing.T) {
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("TERM", "xterm-ghostty")
+	status := ansi.Colorize(ansi.Green, "● LIVE")
+	title := banner.TitleBlock(170, status, time.Unix(0, 0), testConfig(func(cfg *core.Config) {
+		cfg.Theme = core.ThemeWindowsXP
+		cfg.DisableTrueColor = true
+	}))
+	state := testTUIState()
+	state.Cfg.Theme = core.ThemeWindowsXP
+	state.Cfg.DisableTrueColor = true
+	frame := render.Frame(state, 176, 92)
+
+	for name, rendered := range map[string]string{"title": title, "frame": frame} {
+		if !strings.Contains(rendered, "\x1b[38;5;") {
+			t.Fatalf("expected %s to use 256-color escapes", name)
+		}
+		if strings.Contains(rendered, "\x1b[38;2;") || strings.Contains(rendered, "\x1b[48;2;") {
+			t.Fatalf("expected %s to avoid truecolor escapes", name)
+		}
+	}
+}
+
+func TestWindowsXPFrameDecorationPreservesSeverityColors(t *testing.T) {
+	t.Parallel()
+
+	frame := strings.Join([]string{
+		ansi.Green,
+		"live ",
+		ansi.Yellow,
+		"stale ",
+		ansi.Red,
+		"down ",
+		ansi.BorderColor,
+		"border",
+	}, "")
+	got := banner.ApplyWindowsXPFrame(frame, testConfig(func(cfg *core.Config) {
+		cfg.Theme = core.ThemeWindowsXP
+		cfg.DisableTrueColor = true
+	}))
+
+	for _, color := range []string{ansi.Green, ansi.Yellow, ansi.Red} {
+		if !strings.Contains(got, color) {
+			t.Fatalf("expected severity color %q to survive windows-xp frame decoration in %q", color, got)
+		}
+	}
+	if strings.Contains(got, ansi.BorderColor) {
+		t.Fatalf("expected chrome border color to be replaced in %q", got)
+	}
+}
+
+func TestWindowsXPTitleTextAndWidthsStayStableAcrossAnimationFrames(t *testing.T) {
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("TERM", "xterm-ghostty")
+	status := ansi.Colorize(ansi.Green, "● LIVE")
+	cfg := testConfig(func(cfg *core.Config) { cfg.Theme = core.ThemeWindowsXP })
+	first := banner.TitleBlock(170, status, time.Unix(0, 0), cfg)
+	second := banner.TitleBlock(170, status, time.Unix(0, 180*int64(time.Millisecond)), cfg)
+
+	if first == second {
+		t.Fatal("expected windows-xp title colors to change over time")
+	}
+	if ansi.StripANSI(first) != ansi.StripANSI(second) {
+		t.Fatal("expected windows-xp title text content to remain stable")
+	}
+
+	assertRenderedLinesWidth(t, first, 170)
+	assertRenderedLinesWidth(t, second, 170)
+}
+
+func TestWindowsXPFallbackLayoutsStayStable(t *testing.T) {
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("TERM", "xterm-ghostty")
+	status := ansi.Colorize(ansi.Green, "● LIVE")
+
+	for name, cfg := range map[string]core.Config{
+		"compact": testConfig(func(cfg *core.Config) {
+			cfg.Theme = core.ThemeWindowsXP
+			cfg.Compact = true
+		}),
+		"no-banner": testConfig(func(cfg *core.Config) {
+			cfg.Theme = core.ThemeWindowsXP
+			cfg.NoBanner = true
+		}),
+		"narrow": testConfig(func(cfg *core.Config) {
+			cfg.Theme = core.ThemeWindowsXP
+		}),
+	} {
+		width := 70
+		if name == "narrow" {
+			width = 42
+		}
+		title := banner.TitleBlock(width, status, time.Unix(0, 0), cfg)
+
+		if !strings.Contains(ansi.StripANSI(title), "REMOTE MONITOR") {
+			t.Fatalf("%s fallback title lost product name: %q", name, ansi.StripANSI(title))
+		}
+		assertRenderedLinesWidth(t, title, width)
 	}
 }
 
@@ -369,6 +523,16 @@ func TestAnimatedTitleHonorsNoTrueColorFlag(t *testing.T) {
 	}
 	if strings.Contains(title, "\x1b[38;2;") {
 		t.Fatal("expected no-truecolor flag to suppress truecolor escape")
+	}
+}
+
+func assertRenderedLinesWidth(t *testing.T, rendered string, width int) {
+	t.Helper()
+
+	for idx, line := range strings.Split(rendered, "\n") {
+		if got := ansi.VisibleLen(line); got != width {
+			t.Fatalf("line %d width = %d, want %d in %q", idx, got, width, line)
+		}
 	}
 }
 

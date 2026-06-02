@@ -1,6 +1,9 @@
 package banner
 
-import core "github.com/lmliam/remote-monitor/internal/core"
+import (
+	core "github.com/lmliam/remote-monitor/internal/core"
+	"strings"
+)
 
 // Color stores one RGB color used by animated banner themes.
 type Color struct {
@@ -20,8 +23,9 @@ func bannerColorRGB(redValue, greenValue, blueValue int) Color {
 type bannerAnimation string
 
 const (
-	bannerAnimationBasic  bannerAnimation = core.ThemeBasic
-	bannerAnimationAurora bannerAnimation = core.ThemeAurora
+	bannerAnimationBasic     bannerAnimation = core.ThemeBasic
+	bannerAnimationAurora    bannerAnimation = core.ThemeAurora
+	bannerAnimationWindowsXP bannerAnimation = core.ThemeWindowsXP
 )
 
 type bannerTheme struct {
@@ -50,8 +54,9 @@ type Cell struct {
 }
 
 const (
-	basicBannerPhaseMillis  = 90
-	auroraBannerPhaseMillis = 70
+	basicBannerPhaseMillis     = 90
+	auroraBannerPhaseMillis    = 70
+	windowsXPBannerPhaseMillis = 80
 	// AuroraBackdropBandWidth controls the color band quantization used behind the aurora banner.
 	AuroraBackdropBandWidth = 3
 	auroraBackdropHalfStep  = 0.5
@@ -226,6 +231,30 @@ func BasicBannerLines() []string {
 	}
 }
 
+// WindowsXPBannerLines returns the wordmark art for the Windows XP-inspired banner theme.
+func WindowsXPBannerLines() []string {
+	return padWindowsXPBannerLines([]string{
+		`[ XP ]  ____  _____ __  __  ___ _____ _____   __  __  ___  _   _ ___ _____ ___  ____   [ XP ]`,
+		`[____] |  _ \| ____|  \/  |/ _ \_   _| ____| |  \/  |/ _ \| \ | |_ _|_   _/ _ \|  _ \  [____]`,
+		`[____] | |_) |  _| | |\/| | | | || | |  _|   | |\/| | | | |  \| || |  | || | | | |_) | [____]`,
+		`[____] |  _ <| |___| |  | | |_| || | | |___  | |  | | |_| | |\  || |  | || |_| |  _ <  [____]`,
+		`[ XP ] |_| \_\_____|_|  |_|\___/ |_| |_____| |_|  |_|\___/|_| \_|___| |_| \___/|_| \_\ [ XP ]`,
+	})
+}
+
+func padWindowsXPBannerLines(lines []string) []string {
+	width := 0
+	for _, line := range lines {
+		width = max(width, len(line))
+	}
+	padded := make([]string, 0, len(lines))
+	for _, line := range lines {
+		padded = append(padded, line+strings.Repeat(" ", width-len(line)))
+	}
+
+	return padded
+}
+
 // AuroraFaceLines returns the face glyph art layered over the aurora backdrop.
 func AuroraFaceLines() []string {
 	return []string{
@@ -318,6 +347,35 @@ func auroraBackdropPalette() []Color {
 	})
 }
 
+func windowsXPBannerPalette() []Color {
+	const (
+		windowsXPPaletteSteps = 96
+		desktopBlueRed        = 20
+		desktopBlueGreen      = 84
+		desktopBlueBlue       = 214
+		cornflowerRed         = 73
+		cornflowerGreen       = 152
+		cornflowerBlue        = 255
+		glassRed              = 184
+		glassGreen            = 226
+		glassBlue             = 255
+		meadowRed             = 92
+		meadowGreen           = 194
+		meadowBlue            = 60
+		taskbarRed            = 239
+		taskbarGreen          = 172
+		taskbarBlue           = 48
+	)
+
+	return buildGradientBannerPalette(windowsXPPaletteSteps, []Color{
+		bannerColorRGB(desktopBlueRed, desktopBlueGreen, desktopBlueBlue),
+		bannerColorRGB(cornflowerRed, cornflowerGreen, cornflowerBlue),
+		bannerColorRGB(glassRed, glassGreen, glassBlue),
+		bannerColorRGB(meadowRed, meadowGreen, meadowBlue),
+		bannerColorRGB(taskbarRed, taskbarGreen, taskbarBlue),
+	})
+}
+
 // AuroraBannerCanvas returns the aurora banner face art as fixed-width cells.
 func AuroraBannerCanvas() [][]Cell {
 	return buildBannerCanvas(AuroraFaceLines())
@@ -335,6 +393,13 @@ func bannerThemeSpec(name string) bannerTheme {
 			palette:     Palette(),
 			phaseMillis: basicBannerPhaseMillis,
 			animation:   bannerAnimationBasic,
+		}
+	case core.ThemeWindowsXP:
+		return bannerTheme{
+			lines:       WindowsXPBannerLines(),
+			palette:     windowsXPBannerPalette(),
+			phaseMillis: windowsXPBannerPhaseMillis,
+			animation:   bannerAnimationWindowsXP,
 		}
 	default:
 		return bannerTheme{

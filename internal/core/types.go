@@ -4,8 +4,9 @@ import "time"
 
 // Theme constants and runtime states shared across the monitor pipeline.
 const (
-	ThemeAurora = "aurora"
-	ThemeBasic  = "basic"
+	ThemeAurora    = "aurora"
+	ThemeBasic     = "basic"
+	ThemeWindowsXP = "windows-xp"
 
 	StatusConnecting   = "connecting"
 	StatusDisconnected = "disconnected"

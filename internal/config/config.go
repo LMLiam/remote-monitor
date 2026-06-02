@@ -54,7 +54,7 @@ func ParseConfig(args []string) (core.Config, error) {
 	compact := fs.Bool("compact", compactDefault, "Use a compact stacked layout")
 	noBanner := fs.Bool("no-banner", noBannerDefault, "Disable the large rendered title banner")
 	showVersion := fs.Bool("version", false, "Print version information and exit")
-	theme := fs.String("theme", themeDefault, "Color theme (aurora, basic)")
+	theme := fs.String("theme", themeDefault, "Color theme (aurora, basic, windows-xp)")
 	noTrueColor := fs.Bool("no-truecolor", noTrueColorDefault, "Force 256-color rendering even on truecolor terminals")
 	sshConnectTimeout := fs.Int("ssh-connect-timeout", sshConnectTimeoutDefault, "SSH connect timeout in seconds")
 	sshAliveInterval := fs.Int("ssh-server-alive", sshAliveIntervalDefault, "SSH keepalive interval in seconds")
