@@ -201,6 +201,68 @@ func TestParseConfigStoresJSONLOutputPath(t *testing.T) {
 	}
 }
 
+func TestParseConfigAppliesProcessOptions(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{
+		"-process-sort", core.ProcessSortMemory,
+		"-process-filter", "Postgres",
+		"-process-count", "15",
+		testExampleHost,
+	})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.ProcessSort != core.ProcessSortMemory {
+		t.Fatalf("process sort = %q", cfg.ProcessSort)
+	}
+	if cfg.ProcessFilter != "Postgres" {
+		t.Fatalf("process filter = %q", cfg.ProcessFilter)
+	}
+	if cfg.ProcessCount != 15 {
+		t.Fatalf("process count = %d", cfg.ProcessCount)
+	}
+}
+
+func TestParseConfigPreservesDefaultProcessOptions(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{testExampleHost})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.ProcessSort != core.ProcessSortCPU {
+		t.Fatalf("process sort = %q", cfg.ProcessSort)
+	}
+	if cfg.ProcessFilter != "" {
+		t.Fatalf("process filter = %q", cfg.ProcessFilter)
+	}
+	if cfg.ProcessCount != core.DefaultProcessCount {
+		t.Fatalf("process count = %d", cfg.ProcessCount)
+	}
+}
+
+func TestParseConfigRejectsInvalidProcessOptions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("sort", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := config.ParseConfig([]string{"-process-sort", "io", testExampleHost})
+		assertErrorContains(t, err, `unknown process sort mode "io"`)
+		assertErrorContains(t, err, "cpu, mem")
+	})
+
+	t.Run("count", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := config.ParseConfig([]string{"-process-count", "0", testExampleHost})
+		assertErrorContains(t, err, "process count must be at least 1")
+	})
+}
+
 func TestParseConfigFallsBackToAuroraForUnknownThemes(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
 	t.Setenv("MONITOR_THEME", "")

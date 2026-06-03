@@ -13,6 +13,9 @@ const (
 	OutputModeText  = "text"
 	OutputModeJSONL = "jsonl"
 
+	ProcessSortCPU    = "cpu"
+	ProcessSortMemory = "mem"
+
 	StatusConnecting   = "connecting"
 	StatusDisconnected = "disconnected"
 	StatusLive         = "live"
@@ -21,12 +24,17 @@ const (
 	DetailOpeningSSHSession = "opening ssh session"
 	DetailStreamHealthy     = "stream healthy"
 	DetailSSHStreamEnded    = "ssh stream ended"
+
+	DefaultProcessCount = 4
 )
 
 // Config contains CLI, SSH, sampling, and rendering settings.
 type Config struct {
 	Host               string
 	Interval           time.Duration
+	ProcessSort        string
+	ProcessFilter      string
+	ProcessCount       int
 	HistoryLimit       int
 	StaleAfter         time.Duration
 	ReconnectBaseDelay time.Duration

@@ -14,6 +14,9 @@ func testConfig(overrides ...func(*core.Config)) core.Config {
 	cfg := core.Config{
 		Host:               "",
 		Interval:           0,
+		ProcessSort:        "",
+		ProcessFilter:      "",
+		ProcessCount:       0,
 		HistoryLimit:       0,
 		StaleAfter:         0,
 		ReconnectBaseDelay: 0,
@@ -65,6 +68,35 @@ func TestSSHArgsIncludeKeepaliveTimeoutAndControlSocket(t *testing.T) {
 	} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("ssh args missing %q: %q", want, joined)
+		}
+	}
+}
+
+func TestSSHArgsPassProcessOptionsToSampler(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig(func(cfg *core.Config) {
+		cfg.Host = testHost
+		cfg.ProcessSort = core.ProcessSortMemory
+		cfg.ProcessFilter = "python worker"
+		cfg.ProcessCount = 15
+	})
+
+	args := transport.SSHArgs(cfg, 2)
+	got := args[len(args)-8:]
+	want := []string{
+		testHost,
+		"bash",
+		"-s",
+		"--",
+		"2",
+		core.ProcessSortMemory,
+		"'python worker'",
+		"15",
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ssh sampler arg %d = %q, want %q in %#v", i, got[i], want[i], args)
 		}
 	}
 }

@@ -8,6 +8,21 @@ case "${interval}" in
 esac
 interval_ns=$((interval * 1000000000))
 filesystem_refresh_seconds=10
+process_sort="${2:-cpu}"
+case "${process_sort}" in
+  cpu|mem)
+    ;;
+  *)
+    process_sort='cpu'
+    ;;
+esac
+process_filter="${3:-}"
+process_count="${4:-4}"
+case "${process_count}" in
+  ''|*[!0-9]*|0)
+    process_count=4
+    ;;
+esac
 
 refresh_samples_for_seconds() {
   local seconds="$1"

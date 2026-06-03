@@ -186,6 +186,9 @@ func outputTestConfig(overrides ...func(*core.Config)) core.Config {
 	cfg := core.Config{
 		Host:               "example-host",
 		Interval:           time.Second,
+		ProcessSort:        "",
+		ProcessFilter:      "",
+		ProcessCount:       0,
 		HistoryLimit:       30,
 		StaleAfter:         4 * time.Second,
 		ReconnectBaseDelay: time.Second,

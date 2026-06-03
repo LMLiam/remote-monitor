@@ -11,6 +11,9 @@ func testConfig(overrides ...func(*core.Config)) core.Config {
 	cfg := core.Config{
 		Host:               "",
 		Interval:           0,
+		ProcessSort:        "",
+		ProcessFilter:      "",
+		ProcessCount:       0,
 		HistoryLimit:       0,
 		StaleAfter:         0,
 		ReconnectBaseDelay: 0,

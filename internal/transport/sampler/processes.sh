@@ -3,18 +3,33 @@ read_top_process_snapshot() {
     return
   fi
 
-  LC_ALL=C ps -eo pid=,pcpu=,rss=,comm= --sort=-pcpu,-rss 2>/dev/null | awk -v self="$$" -v limit=4 '
-    BEGIN { count = 0 }
+  local sort_spec="-pcpu,-rss"
+  if [ "${process_sort:-cpu}" = "mem" ]; then
+    sort_spec="-rss,-pcpu"
+  fi
+
+  LC_ALL=C ps -eo pid=,pcpu=,rss=,comm=,args= --sort="${sort_spec}" 2>/dev/null | awk -v self="$$" -v limit="${process_count:-4}" -v filter="${process_filter:-}" '
+    BEGIN {
+      count = 0
+      filter = tolower(filter)
+    }
     {
       pid = $1
       cpu = $2 + 0
       rss = $3 + 0
       cmd = $4
+      args = ""
+      for (i = 5; i <= NF; i++) {
+        args = args (args == "" ? "" : " ") $i
+      }
 
       if (pid == self || cmd == "") {
         next
       }
       if (cmd ~ /^(ps|awk|sort|head|tail|sleep|sampler\.sh)$/) {
+        next
+      }
+      if (filter != "" && index(tolower(cmd " " args), filter) == 0) {
         next
       }
 
