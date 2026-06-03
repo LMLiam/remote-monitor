@@ -99,15 +99,18 @@ bash .github/scripts/install-git-hooks.sh
 Run the local checks before pushing:
 
 ```sh
-unformatted="$(gofmt -l ./cmd ./internal)"
+unformatted="$(gofmt -l ./cmd ./internal ./tests)"
 test -z "$unformatted" || { echo "$unformatted"; exit 1; }
-go vet ./...
-go test ./...
-golangci-lint run
+go vet -tags=integration ./...
+go test -tags=integration ./...
+golangci-lint run --build-tags=integration
 go build -o remote-monitor ./cmd/remote-monitor
 ```
 
-The GitHub Actions workflow runs the same native checks.
+The GitHub Actions workflow runs the same native and integration-tagged checks.
+
+Sampler module assembly and collector test guidance lives in
+[internal/transport/sampler/README.md](internal/transport/sampler/README.md).
 
 Release instructions live in [docs/releasing.md](docs/releasing.md).
 
