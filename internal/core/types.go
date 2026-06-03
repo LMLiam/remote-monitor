@@ -42,6 +42,7 @@ type Config struct {
 	Compact            bool
 	NoBanner           bool
 	ShowVersion        bool
+	Once               bool
 	OutputMode         string
 	OutputPath         string
 	Theme              string

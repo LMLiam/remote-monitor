@@ -56,6 +56,8 @@ remote-monitor -theme basic -compact user@example-host
 remote-monitor -theme windows-xp user@example-host
 remote-monitor gpu-box -output jsonl -out samples.jsonl
 remote-monitor gpu-box -process-sort mem -process-filter postgres -process-count 20
+remote-monitor gpu-box --once
+remote-monitor gpu-box --once -output jsonl -out snapshot.jsonl
 ```
 
 You can also set `REMOTE_MONITOR_HOST` and run without a host argument.
@@ -100,6 +102,7 @@ Useful flags:
 | `-profile` | none | disabled |
 | `-config` | none | `$XDG_CONFIG_HOME/remote-monitor/config.toml` or `$HOME/.config/remote-monitor/config.toml` |
 | `-host` | `REMOTE_MONITOR_HOST` | required |
+| `-once` | none | disabled; write one sample and exit |
 | `-output` | none | auto (`tui` on TTY stdout, `text` on non-TTY stdout) |
 | `-out` | none | disabled; supported with `-output jsonl` |
 | `-process-sort` | none | `cpu` (`cpu`, `mem`) |
@@ -136,6 +139,19 @@ remote-monitor gpu-box -output jsonl -out samples.jsonl
 ```
 
 JSONL exports use the normalized local schema `remote-monitor.normalized_sample.v1`, derived from `internal/core.Sample` after sampler parsing rather than the raw remote sampler JSON. Fields are snake_case and include host, CPU, memory, pressure, swap, disk, TCP, filesystem, network, process, GPU, and local `received_at` values. Repeated values such as `net`, `filesystems`, `cpu_core_usage`, `top_processes`, `gpu_processes`, and `gpus` are JSON arrays. Lifecycle and reconnect state are not included in the JSONL stream.
+
+## Snapshot Mode
+
+Use `--once` when scripts, CI jobs, cron jobs, or incident notes need exactly one remote sample. Snapshot mode starts the normal SSH sampler, waits for the first valid parsed sample, writes that sample, and exits. Without an explicit `-output`, `--once` uses the script-friendly text summary even when stdout is a TTY.
+
+```sh
+remote-monitor gpu-box --once
+remote-monitor gpu-box --once -output text
+remote-monitor gpu-box --once -output jsonl
+remote-monitor gpu-box --once -output jsonl -out snapshot.jsonl
+```
+
+`--once -output jsonl` writes exactly one JSON object followed by a newline. With `-out snapshot.jsonl`, the file is created or truncated before the SSH stream starts and stdout remains empty. `--once -output tui` is not supported; use continuous TUI mode without `--once`.
 
 ## WSL Host Metrics
 

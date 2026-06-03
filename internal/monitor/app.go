@@ -21,7 +21,13 @@ import (
 
 const streamChannelBuffer = 32
 
-var errOutRequiresJSONL = errors.New("-out requires -output jsonl")
+var (
+	errOutRequiresJSONL    = errors.New("-out requires -output jsonl")
+	errOnceTUIUnsupported  = errors.New("--once does not support -output tui")
+	errOnceNoSample        = errors.New("stream ended before first sample")
+	errOnceStreamFailed    = errors.New("one-shot sample failed before first sample")
+	errOnceContextCanceled = errors.New("one-shot sample canceled before first sample")
+)
 
 type streamRunner func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent)
 
@@ -68,6 +74,9 @@ func run(ctx context.Context, cfg core.Config, deps runDependencies) error {
 
 	deps = normalizeRunDependencies(deps)
 	outputMode := resolveOutputMode(cfg, deps.stdoutIsTTY())
+	if cfg.Once && outputMode == core.OutputModeTUI {
+		return errOnceTUIUnsupported
+	}
 	outputWriter, closeOutput, err := openOutputWriter(cfg, outputMode, deps.stdout)
 	if err != nil {
 		return err
@@ -80,13 +89,17 @@ func run(ctx context.Context, cfg core.Config, deps runDependencies) error {
 	go deps.runStream(ctx, cfg, sampleCh, eventCh)
 
 	var runErr error
-	switch outputMode {
-	case core.OutputModeTUI:
-		runErr = runTUI(ctx, state, sampleCh, eventCh)
-	case core.OutputModeJSONL:
-		runErr = runJSONL(ctx, state, sampleCh, eventCh, outputWriter)
-	default:
-		runErr = runText(ctx, cfg, state, sampleCh, eventCh, outputWriter)
+	if cfg.Once {
+		runErr = runOnce(ctx, state, sampleCh, eventCh, outputMode, outputWriter)
+	} else {
+		switch outputMode {
+		case core.OutputModeTUI:
+			runErr = runTUI(ctx, state, sampleCh, eventCh)
+		case core.OutputModeJSONL:
+			runErr = runJSONL(ctx, state, sampleCh, eventCh, outputWriter)
+		default:
+			runErr = runText(ctx, cfg, state, sampleCh, eventCh, outputWriter)
+		}
 	}
 
 	if closeErr := closeOutput(); runErr == nil && closeErr != nil {
@@ -114,6 +127,9 @@ func resolveOutputMode(cfg core.Config, stdoutIsTTY bool) string {
 	if cfg.OutputMode != core.OutputModeAuto {
 		return cfg.OutputMode
 	}
+	if cfg.Once {
+		return core.OutputModeText
+	}
 	if stdoutIsTTY {
 		return core.OutputModeTUI
 	}
@@ -135,6 +151,84 @@ func openOutputWriter(cfg core.Config, outputMode string, stdout io.Writer) (io.
 	}
 
 	return file, file.Close, nil
+}
+
+func runOnce(
+	ctx context.Context,
+	state core.AppState,
+	sampleCh <-chan core.Sample,
+	eventCh <-chan core.StreamEvent,
+	outputMode string,
+	stdout io.Writer,
+) error {
+	writer := jsonl.NewWriter(stdout)
+	for sampleCh != nil || eventCh != nil {
+		select {
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
+
+			return writeOnceSample(&state, smp, outputMode, stdout, writer)
+		default:
+		}
+
+		select {
+		case <-ctx.Done():
+			if errors.Is(ctx.Err(), context.Canceled) {
+				return errOnceContextCanceled
+			}
+
+			return ctx.Err()
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
+
+			return writeOnceSample(&state, smp, outputMode, stdout, writer)
+		case ev, ok := <-eventCh:
+			if !ok {
+				eventCh = nil
+
+				continue
+			}
+			ApplyEvent(&state, ev)
+			if ev.State == core.StatusDisconnected && !ev.StreamAlive {
+				return fmt.Errorf("%w: %s", errOnceStreamFailed, onceFailureDetail(ev))
+			}
+		}
+	}
+
+	return errOnceNoSample
+}
+
+func writeOnceSample(
+	state *core.AppState,
+	smp core.Sample,
+	outputMode string,
+	stdout io.Writer,
+	writer *jsonl.Writer,
+) error {
+	ApplySample(state, smp)
+	if outputMode == core.OutputModeJSONL {
+		return writer.WriteSample(smp)
+	}
+
+	_, err := fmt.Fprintln(stdout, render.NonInteractive(*state))
+
+	return err
+}
+
+func onceFailureDetail(ev core.StreamEvent) string {
+	if ev.Detail != "" {
+		return ev.Detail
+	}
+
+	return errOnceNoSample.Error()
 }
 
 func runText(

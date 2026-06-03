@@ -42,6 +42,12 @@ func RunStream(ctx context.Context, cfg core.Config, sampleCh chan<- core.Sample
 
 		stream, err := openActiveStream(ctx, cfg, intervalSeconds)
 		if err != nil {
+			if cfg.Once {
+				sendEvent(ctx, eventCh, newStreamEvent(core.StatusDisconnected, err.Error(), 1, attempts, false, time.Time{}))
+
+				return
+			}
+
 			var keepRunning bool
 			reconnectCount, delay, keepRunning = failStreamAttempt(ctx, eventCh, err.Error(), reconnectCount, attempts, delay)
 			if !keepRunning {
@@ -81,6 +87,9 @@ func RunStream(ctx context.Context, cfg core.Config, sampleCh chan<- core.Sample
 		nextRetry := time.Now().Add(delay)
 		detail := streamDisconnectDetail(scanErr, waitErr, stream.stderr.String(), streamHadSample)
 		sendEvent(ctx, eventCh, newStreamEvent(core.StatusDisconnected, detail, reconnectCount, attempts+1, false, nextRetry))
+		if cfg.Once && !streamHadSample {
+			return
+		}
 		if !sleepContext(ctx, delay) {
 			return
 		}
