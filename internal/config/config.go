@@ -3,11 +3,12 @@ package config
 import (
 	"errors"
 	"flag"
-	core "github.com/lmliam/remote-monitor/internal/core"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	core "github.com/lmliam/remote-monitor/internal/core"
 )
 
 // ErrEmptyHost reports a missing SSH host in parsed configuration.
@@ -27,100 +28,228 @@ const (
 
 // ParseConfig builds monitor configuration from CLI args and environment defaults.
 func ParseConfig(args []string) (core.Config, error) {
-	hostDefault := getenvDefault("REMOTE_MONITOR_HOST", "")
-	intervalDefault := getenvInt("MONITOR_INTERVAL", 1)
-	historyDefault := getenvInt("MONITOR_HISTORY_LIMIT", defaultHistoryLimit)
-	staleDefault := getenvInt("MONITOR_STALE_AFTER", intervalDefault*3+1)
-	reconnectDefault := getenvInt("MONITOR_RECONNECT_DELAY", defaultReconnectDelaySecs)
-	fpsDefault := getenvInt("MONITOR_FPS", defaultRenderFPS)
-	compactDefault := getenvBool("MONITOR_COMPACT", false)
-	noBannerDefault := getenvBool("MONITOR_NO_BANNER", false)
-	themeDefault := getenvDefault("MONITOR_THEME", core.ThemeAurora)
-	noTrueColorDefault := getenvBool("MONITOR_NO_TRUECOLOR", false)
-	sshConnectTimeoutDefault := getenvInt("MONITOR_SSH_CONNECT_TIMEOUT", defaultSSHTimeoutSecs)
-	sshAliveIntervalDefault := getenvInt("MONITOR_SSH_ALIVE_INTERVAL", defaultSSHTimeoutSecs)
-	sshAliveCountDefault := getenvInt("MONITOR_SSH_ALIVE_COUNT", defaultSSHAliveCount)
-	sshControlPersistDefault := getenvInt("MONITOR_SSH_CONTROL_PERSIST", defaultSSHControlSecs)
+	envDefaults := configValuesFromEnv()
+	cliValues := envDefaults
 
 	fs := flag.NewFlagSet("remote-monitor", flag.ContinueOnError)
 	fs.SetOutput(os.Stdout)
 
-	host := fs.String("host", hostDefault, "SSH host to monitor")
-	interval := fs.Int("interval", intervalDefault, "Refresh interval in seconds")
-	history := fs.Int("history", historyDefault, "History Sample limit")
-	staleAfter := fs.Int("stale-after", staleDefault, "Seconds before live data is considered stale")
-	reconnectDelay := fs.Int("reconnect-delay", reconnectDefault, "Base reconnect delay in seconds")
-	fps := fs.Int("fps", fpsDefault, "TTY redraw frames per second")
-	compact := fs.Bool("compact", compactDefault, "Use a compact stacked layout")
-	noBanner := fs.Bool("no-banner", noBannerDefault, "Disable the large rendered title banner")
+	configPath := fs.String("config", defaultConfigPath(), "Path to TOML config file")
+	profileName := fs.String("profile", "", "Named profile from the config file")
+	host := fs.String("host", cliValues.host, "SSH host to monitor")
+	interval := fs.Int("interval", cliValues.interval, "Refresh interval in seconds")
+	history := fs.Int("history", cliValues.history, "History Sample limit")
+	staleAfter := fs.Int("stale-after", cliValues.staleAfter, "Seconds before live data is considered stale")
+	reconnectDelay := fs.Int("reconnect-delay", cliValues.reconnectDelay, "Base reconnect delay in seconds")
+	fps := fs.Int("fps", cliValues.fps, "TTY redraw frames per second")
+	compact := fs.Bool("compact", cliValues.compact, "Use a compact stacked layout")
+	noBanner := fs.Bool("no-banner", cliValues.noBanner, "Disable the large rendered title banner")
 	showVersion := fs.Bool("version", false, "Print version information and exit")
-	theme := fs.String("theme", themeDefault, "Color theme (aurora, basic, windows-xp)")
-	noTrueColor := fs.Bool("no-truecolor", noTrueColorDefault, "Force 256-color rendering even on truecolor terminals")
-	sshConnectTimeout := fs.Int("ssh-connect-timeout", sshConnectTimeoutDefault, "SSH connect timeout in seconds")
-	sshAliveInterval := fs.Int("ssh-server-alive", sshAliveIntervalDefault, "SSH keepalive interval in seconds")
-	sshAliveCount := fs.Int("ssh-server-alive-count", sshAliveCountDefault, "SSH keepalive failure threshold before reconnect")
-	sshControlPersist := fs.Int("ssh-control-persist", sshControlPersistDefault, "SSH control socket persist time in seconds")
+	theme := fs.String("theme", cliValues.theme, "Color theme (aurora, basic, windows-xp)")
+	noTrueColor := fs.Bool("no-truecolor", cliValues.noTrueColor, "Force 256-color rendering even on truecolor terminals")
+	sshConnectTimeout := fs.Int("ssh-connect-timeout", cliValues.sshConnectTimeout, "SSH connect timeout in seconds")
+	sshAliveInterval := fs.Int("ssh-server-alive", cliValues.sshAliveInterval, "SSH keepalive interval in seconds")
+	sshAliveCount := fs.Int("ssh-server-alive-count", cliValues.sshAliveCount, "SSH keepalive failure threshold before reconnect")
+	sshControlPersist := fs.Int("ssh-control-persist", cliValues.sshControlPersist, "SSH control socket persist time in seconds")
 
 	if err := fs.Parse(args); err != nil {
 		return core.Config{}, err
 	}
 
-	if fs.NArg() > 0 {
-		*host = fs.Arg(0)
+	if *showVersion {
+		return versionOnlyConfig(), nil
 	}
-	if strings.TrimSpace(*host) == "" && !*showVersion {
+
+	cliValues = configValues{
+		host:              *host,
+		interval:          *interval,
+		history:           *history,
+		staleAfter:        *staleAfter,
+		reconnectDelay:    *reconnectDelay,
+		fps:               *fps,
+		compact:           *compact,
+		noBanner:          *noBanner,
+		theme:             *theme,
+		noTrueColor:       *noTrueColor,
+		sshConnectTimeout: *sshConnectTimeout,
+		sshAliveInterval:  *sshAliveInterval,
+		sshAliveCount:     *sshAliveCount,
+		sshControlPersist: *sshControlPersist,
+	}
+
+	resolved := envDefaults
+	selectedProfile := strings.TrimSpace(*profileName)
+	if selectedProfile != "" {
+		profile, err := loadProfile(*configPath, selectedProfile)
+		if err != nil {
+			return core.Config{}, err
+		}
+		if err := applyProfile(&resolved, profile, selectedProfile); err != nil {
+			return core.Config{}, err
+		}
+	}
+
+	applyExplicitFlags(&resolved, cliValues, visitedFlags(fs))
+	if fs.NArg() > 0 {
+		resolved.host = fs.Arg(0)
+	}
+	if strings.TrimSpace(resolved.host) == "" {
 		return core.Config{}, ErrEmptyHost
 	}
-	if *interval < 1 {
-		*interval = 1
-	}
-	if *history < minHistoryLimit {
-		*history = minHistoryLimit
-	}
-	if *staleAfter < minStaleAfterSecs {
-		*staleAfter = minStaleAfterSecs
-	}
-	if *reconnectDelay < 1 {
-		*reconnectDelay = 1
-	}
-	if *fps < 1 {
-		*fps = 1
-	}
-	if *fps > maxRenderFPS {
-		*fps = maxRenderFPS
-	}
-	if *sshConnectTimeout < 1 {
-		*sshConnectTimeout = 1
-	}
-	if *sshAliveInterval < 1 {
-		*sshAliveInterval = 1
-	}
-	if *sshAliveCount < 1 {
-		*sshAliveCount = 1
-	}
-	if *sshControlPersist < 0 {
-		*sshControlPersist = 0
-	}
-	*theme = core.CanonicalThemeName(*theme)
+
+	resolved.clamp()
+	resolved.theme = core.CanonicalThemeName(resolved.theme)
 
 	return core.Config{
-		Host:               *host,
-		Interval:           time.Duration(*interval) * time.Second,
-		HistoryLimit:       *history,
-		StaleAfter:         time.Duration(*staleAfter) * time.Second,
-		ReconnectBaseDelay: time.Duration(*reconnectDelay) * time.Second,
-		RenderFPS:          *fps,
-		Compact:            *compact,
-		NoBanner:           *noBanner,
-		ShowVersion:        *showVersion,
-		Theme:              *theme,
-		DisableTrueColor:   *noTrueColor,
-		SSHConnectTimeout:  time.Duration(*sshConnectTimeout) * time.Second,
-		SSHAliveInterval:   time.Duration(*sshAliveInterval) * time.Second,
-		SSHAliveCountMax:   *sshAliveCount,
-		SSHControlPersist:  time.Duration(*sshControlPersist) * time.Second,
+		Host:               resolved.host,
+		Interval:           time.Duration(resolved.interval) * time.Second,
+		HistoryLimit:       resolved.history,
+		StaleAfter:         time.Duration(resolved.staleAfter) * time.Second,
+		ReconnectBaseDelay: time.Duration(resolved.reconnectDelay) * time.Second,
+		RenderFPS:          resolved.fps,
+		Compact:            resolved.compact,
+		NoBanner:           resolved.noBanner,
+		ShowVersion:        false,
+		Theme:              resolved.theme,
+		DisableTrueColor:   resolved.noTrueColor,
+		SSHConnectTimeout:  time.Duration(resolved.sshConnectTimeout) * time.Second,
+		SSHAliveInterval:   time.Duration(resolved.sshAliveInterval) * time.Second,
+		SSHAliveCountMax:   resolved.sshAliveCount,
+		SSHControlPersist:  time.Duration(resolved.sshControlPersist) * time.Second,
 		SSHControlPath:     "",
 	}, nil
+}
+
+type configValues struct {
+	host              string
+	interval          int
+	history           int
+	staleAfter        int
+	reconnectDelay    int
+	fps               int
+	compact           bool
+	noBanner          bool
+	theme             string
+	noTrueColor       bool
+	sshConnectTimeout int
+	sshAliveInterval  int
+	sshAliveCount     int
+	sshControlPersist int
+}
+
+func configValuesFromEnv() configValues {
+	intervalDefault := getenvInt("MONITOR_INTERVAL", 1)
+
+	return configValues{
+		host:              getenvDefault("REMOTE_MONITOR_HOST", ""),
+		interval:          intervalDefault,
+		history:           getenvInt("MONITOR_HISTORY_LIMIT", defaultHistoryLimit),
+		staleAfter:        getenvInt("MONITOR_STALE_AFTER", intervalDefault*3+1),
+		reconnectDelay:    getenvInt("MONITOR_RECONNECT_DELAY", defaultReconnectDelaySecs),
+		fps:               getenvInt("MONITOR_FPS", defaultRenderFPS),
+		compact:           getenvBool("MONITOR_COMPACT", false),
+		noBanner:          getenvBool("MONITOR_NO_BANNER", false),
+		theme:             getenvDefault("MONITOR_THEME", core.ThemeAurora),
+		noTrueColor:       getenvBool("MONITOR_NO_TRUECOLOR", false),
+		sshConnectTimeout: getenvInt("MONITOR_SSH_CONNECT_TIMEOUT", defaultSSHTimeoutSecs),
+		sshAliveInterval:  getenvInt("MONITOR_SSH_ALIVE_INTERVAL", defaultSSHTimeoutSecs),
+		sshAliveCount:     getenvInt("MONITOR_SSH_ALIVE_COUNT", defaultSSHAliveCount),
+		sshControlPersist: getenvInt("MONITOR_SSH_CONTROL_PERSIST", defaultSSHControlSecs),
+	}
+}
+
+func (values *configValues) clamp() {
+	if values.interval < 1 {
+		values.interval = 1
+	}
+	if values.history < minHistoryLimit {
+		values.history = minHistoryLimit
+	}
+	if values.staleAfter < minStaleAfterSecs {
+		values.staleAfter = minStaleAfterSecs
+	}
+	if values.reconnectDelay < 1 {
+		values.reconnectDelay = 1
+	}
+	if values.fps < 1 {
+		values.fps = 1
+	}
+	if values.fps > maxRenderFPS {
+		values.fps = maxRenderFPS
+	}
+	if values.sshConnectTimeout < 1 {
+		values.sshConnectTimeout = 1
+	}
+	if values.sshAliveInterval < 1 {
+		values.sshAliveInterval = 1
+	}
+	if values.sshAliveCount < 1 {
+		values.sshAliveCount = 1
+	}
+	if values.sshControlPersist < 0 {
+		values.sshControlPersist = 0
+	}
+}
+
+func versionOnlyConfig() core.Config {
+	var cfg core.Config
+	cfg.ShowVersion = true
+
+	return cfg
+}
+
+func visitedFlags(fs *flag.FlagSet) map[string]bool {
+	visited := map[string]bool{}
+	fs.Visit(func(flag *flag.Flag) {
+		visited[flag.Name] = true
+	})
+
+	return visited
+}
+
+func applyExplicitFlags(resolved *configValues, cli configValues, explicit map[string]bool) {
+	if explicit["host"] {
+		resolved.host = cli.host
+	}
+	if explicit["interval"] {
+		resolved.interval = cli.interval
+	}
+	if explicit["history"] {
+		resolved.history = cli.history
+	}
+	if explicit["stale-after"] {
+		resolved.staleAfter = cli.staleAfter
+	}
+	if explicit["reconnect-delay"] {
+		resolved.reconnectDelay = cli.reconnectDelay
+	}
+	if explicit["fps"] {
+		resolved.fps = cli.fps
+	}
+	if explicit["compact"] {
+		resolved.compact = cli.compact
+	}
+	if explicit["no-banner"] {
+		resolved.noBanner = cli.noBanner
+	}
+	if explicit["theme"] {
+		resolved.theme = cli.theme
+	}
+	if explicit["no-truecolor"] {
+		resolved.noTrueColor = cli.noTrueColor
+	}
+	if explicit["ssh-connect-timeout"] {
+		resolved.sshConnectTimeout = cli.sshConnectTimeout
+	}
+	if explicit["ssh-server-alive"] {
+		resolved.sshAliveInterval = cli.sshAliveInterval
+	}
+	if explicit["ssh-server-alive-count"] {
+		resolved.sshAliveCount = cli.sshAliveCount
+	}
+	if explicit["ssh-control-persist"] {
+		resolved.sshControlPersist = cli.sshControlPersist
+	}
 }
 
 func getenvDefault(key, fallback string) string {
