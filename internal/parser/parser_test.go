@@ -249,3 +249,60 @@ func TestParserBuildsIntelGPUFromSamplerJSON(t *testing.T) {
 		t.Fatalf("expected unavailable Intel vendor details to use sentinels, got %#v", gpu)
 	}
 }
+
+func TestParserBuildsAMDGPUFromSamplerJSON(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"remote":"amd-host","gpus":[{"index":0,"uuid":"amd-0000:0b:00.0","name":"AMD Radeon RX 7900 XTX","util_percent":73,"mem_util_percent":50,"encoder_util_percent":-1,"decoder_util_percent":12,"mem_used_mib":12288,"mem_total_mib":24576,"temp_c":62,"power_draw_w":315.5,"power_limit_w":355.0,"fan_percent":58,"sm_clock_mhz":2485,"sm_clock_max_mhz":2900,"mem_clock_mhz":1248,"mem_clock_max_mhz":1250,"graphics_clock_mhz":2485,"video_clock_mhz":-1,"pcie_gen_current":4,"pcie_gen_max":4,"pcie_width_current":16,"pcie_width_max":16,"throttle_reasons":"power cap","p_state":"auto"}]}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected completed AMD GPU sample from Parser")
+	}
+	if len(got.GPUs) != 1 {
+		t.Fatalf("expected one AMD GPU, got %#v", got.GPUs)
+	}
+	assertParsedAMDGPUIdentity(t, got.GPUs[0])
+	assertParsedAMDGPUUtilization(t, got.GPUs[0])
+	assertParsedAMDGPUClocks(t, got.GPUs[0])
+	assertParsedAMDGPUState(t, got.GPUs[0])
+}
+
+func assertParsedAMDGPUIdentity(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.UUID != "amd-0000:0b:00.0" || gpu.Name != "AMD Radeon RX 7900 XTX" || gpu.Util != 73 {
+		t.Fatalf("unexpected AMD GPU identity/utilization: %#v", gpu)
+	}
+}
+
+func assertParsedAMDGPUUtilization(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.MemUsed != 12288 || gpu.MemTotal != 24576 || gpu.MemUtil != 50 {
+		t.Fatalf("unexpected AMD GPU memory: %#v", gpu)
+	}
+	if gpu.Temp != 62 || gpu.PowerDraw != 315.5 || gpu.PowerLimit != 355 || gpu.Fan != 58 {
+		t.Fatalf("unexpected AMD GPU sensors: %#v", gpu)
+	}
+}
+
+func assertParsedAMDGPUClocks(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.SMClock != 2485 || gpu.MaxSMClock != 2900 || gpu.MemClock != 1248 || gpu.MaxMemClock != 1250 || gpu.GraphicsClock != 2485 {
+		t.Fatalf("unexpected AMD GPU clocks: %#v", gpu)
+	}
+	if gpu.PCIeGenCurrent != 4 || gpu.PCIeGenMax != 4 || gpu.PCIeWidthCurrent != 16 || gpu.PCIeWidthMax != 16 {
+		t.Fatalf("unexpected AMD GPU PCIe fields: %#v", gpu)
+	}
+}
+
+func assertParsedAMDGPUState(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.ThrottleReasons != "power cap" || gpu.PState != "auto" || gpu.EncoderUtil != -1 || gpu.DecoderUtil != 12 {
+		t.Fatalf("unexpected AMD GPU state/media fields: %#v", gpu)
+	}
+}

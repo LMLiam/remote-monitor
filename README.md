@@ -4,7 +4,7 @@
 
 Terminal UI for monitoring a remote Linux host over SSH.
 
-`remote-monitor` streams a small Bash sampler to the target host and renders CPU, memory, disk, network, process, and optional NVIDIA or Intel GPU metrics locally. The remote machine does not need a daemon, agent, or checked-out copy of this repository.
+`remote-monitor` streams a small Bash sampler to the target host and renders CPU, memory, disk, network, process, and optional NVIDIA, AMD, or Intel GPU metrics locally. The remote machine does not need a daemon, agent, or checked-out copy of this repository.
 
 ## Features
 
@@ -20,7 +20,8 @@ Terminal UI for monitoring a remote Linux host over SSH.
 - Go 1.26 or newer.
 - Local `ssh` client.
 - SSH access to a Linux host with Bash and common core utilities.
-- Optional NVIDIA GPU metrics when `nvidia-smi` is available on the remote host.
+- Optional NVIDIA GPU metrics from `nvidia-smi` on the remote host.
+- Optional AMD GPU metrics from `amd-smi`, `rocm-smi`, or `/sys/class/drm` on the remote host.
 - Optional Intel GPU metrics from `intel_gpu_top`, `xpu-smi`, or `/sys/class/drm` on the remote host.
 
 ## Install
@@ -164,6 +165,16 @@ Set `REMOTE_MONITOR_WSL_HOST_METRICS=0` in the remote WSL environment to disable
 GPU collection is best-effort and vendor tooling is optional. Hosts without supported GPU tools or exposed GPU devices still emit valid samples with an empty GPU list.
 
 NVIDIA metrics use `nvidia-smi` when it is available. Remote Monitor collects device identity, utilization, memory, thermals, power, fan, clock, PCIe, throttle, performance-state, and top compute-process rows supported by the installed driver.
+
+AMD metrics use these sources in priority order:
+
+| Source | Typical stack | Metrics |
+| --- | --- | --- |
+| `amd-smi metric --json` | AMD SMI / ROCm on Linux | device identity, utilization, memory used/total/utilization, thermals, power, fan, graphics and memory clocks, PCIe link fields, throttle text, and performance state when exposed |
+| `rocm-smi --json` | legacy ROCm SMI packages | device identity, utilization, memory used/total/utilization, edge temperature, power, fan, active graphics and memory clocks, and performance state when exposed |
+| `/sys/class/drm` | kernel fallback | AMD device identity plus available VRAM, temperature, power, fan, graphics/memory clocks, and performance state files |
+
+AMD platforms vary by ROCm version, driver stack, permissions, and ASIC. `amd-smi` is preferred because AMD documents it as the replacement for `rocm-smi`; `rocm-smi` remains a fallback for hosts that still package it. Missing tools, unavailable JSON fields, unsupported hardware counters, and unreadable sysfs files are treated as unavailable metrics rather than sampler failures. Windows AMD GPU collection is not currently supported.
 
 Intel metrics merge these sources when they are available:
 

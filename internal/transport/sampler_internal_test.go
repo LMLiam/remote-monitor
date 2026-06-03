@@ -26,9 +26,13 @@ const (
 	testIntelDeviceFile                 = "device/device"
 	testIntelUeventFile                 = "device/uevent"
 	testIntelVendorValue                = "0x8086\n"
+	testAMDVendorValue                  = "0x1002\n"
+	testVRAMTotalFile                   = "device/mem_info_vram_total"
+	testVRAMUsedFile                    = "device/mem_info_vram_used"
 	samplerJSONModule                   = "json.sh"
 	samplerNVIDIAModule                 = "gpu_nvidia.sh"
 	samplerIntelModule                  = "gpu_intel.sh"
+	samplerAMDModule                    = "gpu_amd.sh"
 	readWSLHostMetricsLine              = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
 	applyWSLHostMetricsLine             = `apply_wsl_host_metrics`
 	allHostMetricsPrintLine             = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
@@ -345,8 +349,8 @@ JSON
 		testIntelUeventFile:               "PCI_ID=8086:56A5\nPCI_SLOT_NAME=0000:03:00.0\n",
 		"device/hwmon/hwmon0/temp1_input": "53000\n",
 		"device/hwmon/hwmon0/power1_cap":  "45000000\n",
-		"device/mem_info_vram_total":      "8589934592\n",
-		"device/mem_info_vram_used":       "3221225472\n",
+		testVRAMTotalFile:                 "8589934592\n",
+		testVRAMUsedFile:                  "3221225472\n",
 	})
 
 	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
@@ -480,8 +484,8 @@ exit 1
 		testIntelDeviceFile:               "0x9a49\n",
 		testIntelUeventFile:               "PCI_ID=8086:9A49\nPCI_SLOT_NAME=0000:00:02.0\n",
 		"device/hwmon/hwmon2/temp1_input": "44000\n",
-		"device/mem_info_vram_total":      "2147483648\n",
-		"device/mem_info_vram_used":       "536870912\n",
+		testVRAMTotalFile:                 "2147483648\n",
+		testVRAMUsedFile:                  "536870912\n",
 	})
 
 	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
@@ -512,6 +516,265 @@ func TestRemoteSamplerIgnoresAbsentIntelSources(t *testing.T) {
 	})
 	if got != "[]" {
 		t.Fatalf("expected no Intel GPUs without tooling or sysfs devices, got %q", got)
+	}
+}
+
+func TestRemoteSamplerBuildsAMDGPUJSONFromAMDSMI(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "amd-smi"), `#!/bin/sh
+if [ "$1" = "metric" ] && [ "$2" = "--json" ]; then
+  cat <<'JSON'
+{
+  "gpu": [
+    {
+      "gpu_id": 0,
+      "asic": {
+        "market_name": "AMD Radeon RX 7900 XTX",
+        "uuid": "GPU-AMD-123",
+        "bdf": "0000:0b:00.0"
+      },
+      "usage": {
+        "gfx_activity": 73,
+        "umc_activity": 44,
+        "mm_activity": 12
+      },
+      "memory_usage": {
+        "vram_used_mb": 12288,
+        "vram_total_mb": 24576
+      },
+      "temperature": {
+        "edge_celsius": 62
+      },
+      "power": {
+        "average_socket_power_w": 315.50,
+        "power_cap_w": 355.0
+      },
+      "fan": {
+        "speed_percent": 58
+      },
+      "clock": {
+        "gfxclk_mhz": 2485,
+        "gfxclk_max_mhz": 2900,
+        "memclk_mhz": 1248,
+        "memclk_max_mhz": 1250
+      },
+      "pcie": {
+        "current_gen": 4,
+        "max_gen": 4,
+        "current_width": 16,
+        "max_width": 16
+      },
+      "performance": {
+        "level": "auto",
+        "throttle_status": "power cap"
+      }
+    },
+    {
+      "gpu_id": 1,
+      "asic": {
+        "market_name": "AMD Radeon RX 7800 XT",
+        "uuid": "GPU-AMD-456",
+        "bdf": "0000:0c:00.0"
+      },
+      "usage": {
+        "gfx_activity": 31
+      },
+      "memory_usage": {
+        "vram_used_mb": 4096,
+        "vram_total_mb": 16384
+      },
+      "temperature": {
+        "edge_celsius": 55
+      }
+    }
+  ]
+}
+JSON
+  exit 0
+fi
+exit 1
+`)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: t.TempDir(),
+	}))
+	if len(got) != 2 {
+		t.Fatalf("expected two amd-smi AMD GPUs, got %#v", got)
+	}
+	assertAMDSMIPrimaryGPU(t, got[0])
+	assertAMDSMISecondaryGPU(t, got[1])
+}
+
+func assertAMDSMIPrimaryGPU(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	assertAMDSMIPrimaryIdentity(t, gpu)
+	assertAMDSMIPrimaryMemoryAndSensors(t, gpu)
+	assertAMDSMIPrimaryClocksAndLink(t, gpu)
+	assertAMDSMIPrimaryState(t, gpu)
+}
+
+func assertAMDSMIPrimaryIdentity(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.Index != 0 || gpu.UUID != "GPU-AMD-123" || gpu.Name != "AMD Radeon RX 7900 XTX" {
+		t.Fatalf("unexpected amd-smi AMD identity: %#v", gpu)
+	}
+	if gpu.Util != 73 || gpu.DecoderUtil != 12 {
+		t.Fatalf("unexpected amd-smi AMD utilization: %#v", gpu)
+	}
+}
+
+func assertAMDSMIPrimaryMemoryAndSensors(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.MemUsed != 12288 || gpu.MemTotal != 24576 || gpu.MemUtil != 50 {
+		t.Fatalf("unexpected amd-smi AMD memory: %#v", gpu)
+	}
+	if gpu.Temp != 62 || gpu.PowerDraw != 315.5 || gpu.PowerLimit != 355 || gpu.Fan != 58 {
+		t.Fatalf("unexpected amd-smi AMD sensors: %#v", gpu)
+	}
+}
+
+func assertAMDSMIPrimaryClocksAndLink(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.SMClock != 2485 || gpu.MaxSMClock != 2900 || gpu.MemClock != 1248 || gpu.MaxMemClock != 1250 || gpu.GraphicsClock != 2485 {
+		t.Fatalf("unexpected amd-smi AMD clocks: %#v", gpu)
+	}
+	if gpu.PCIeGenCurrent != 4 || gpu.PCIeGenMax != 4 || gpu.PCIeWidthCurrent != 16 || gpu.PCIeWidthMax != 16 {
+		t.Fatalf("unexpected amd-smi AMD PCIe fields: %#v", gpu)
+	}
+}
+
+func assertAMDSMIPrimaryState(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.ThrottleReasons != "power cap" || gpu.PState != "auto" || gpu.EncoderUtil != -1 {
+		t.Fatalf("unexpected amd-smi AMD state/media fields: %#v", gpu)
+	}
+}
+
+func assertAMDSMISecondaryGPU(t *testing.T, gpu core.GPUStat) {
+	t.Helper()
+
+	if gpu.Index != 1 || gpu.UUID != "GPU-AMD-456" || gpu.Name != "AMD Radeon RX 7800 XT" {
+		t.Fatalf("unexpected second amd-smi AMD identity: %#v", gpu)
+	}
+	if gpu.Util != 31 || gpu.MemUsed != 4096 || gpu.MemTotal != 16384 || gpu.MemUtil != 25 || gpu.Temp != 55 {
+		t.Fatalf("unexpected second amd-smi AMD metrics: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerBuildsAMDGPUJSONFromSysfsWhenToolsAreMissing(t *testing.T) {
+	t.Parallel()
+
+	drmDir := writeAMDSysfsFallbackFixture(t)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:                             prependTestPath(t.TempDir()),
+		testIntelDRMClassEnv:                    drmDir,
+		"REMOTE_MONITOR_TEST_DISABLE_AMD_TOOLS": "1",
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected one sysfs AMD GPU, got %#v", got)
+	}
+	gpu := got[0]
+	if gpu.Index != 0 || gpu.UUID != "amd-0000:0b:00.0" || gpu.Name != "AMD GPU 1002:744C" {
+		t.Fatalf("unexpected sysfs AMD identity: %#v", gpu)
+	}
+	if gpu.MemUsed != 12288 || gpu.MemTotal != 24576 || gpu.MemUtil != 50 {
+		t.Fatalf("unexpected sysfs AMD memory: %#v", gpu)
+	}
+	if gpu.Temp != 62 || gpu.PowerDraw != 315.5 || gpu.PowerLimit != 355 {
+		t.Fatalf("unexpected sysfs AMD sensors: %#v", gpu)
+	}
+	if gpu.Util != -1 || gpu.Fan != -1 || gpu.PState != "" {
+		t.Fatalf("expected sysfs AMD unavailable metrics to use sentinels, got %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerFallsBackToSysfsWhenAMDSMIJSONHasNoGPUData(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "amd-smi"), `#!/bin/sh
+printf '{}'
+`)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: writeAMDSysfsFallbackFixture(t),
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected sysfs AMD GPU fallback, got %#v", got)
+	}
+	if got[0].UUID != "amd-0000:0b:00.0" || got[0].MemUsed != 12288 || got[0].Temp != 62 {
+		t.Fatalf("unexpected sysfs AMD fallback after empty amd-smi JSON: %#v", got[0])
+	}
+}
+
+func TestRemoteSamplerBuildsAMDGPUJSONFromROCMMIWhenAMDSMIIsMissing(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "rocm-smi"), `#!/bin/sh
+cat <<'JSON'
+{
+  "card0": {
+    "Card series": "AMD Radeon PRO W7900",
+    "Unique ID": "0xabcdef123456",
+    "GPU use (%)": "68",
+    "GPU Memory Allocated (VRAM%)": "40",
+    "VRAM Total Memory (B)": "34359738368",
+    "VRAM Total Used Memory (B)": "13743895347",
+    "Temperature (Sensor edge) (C)": "59.0",
+    "Average Graphics Package Power (W)": "220.5",
+    "Max Graphics Package Power (W)": "295.0",
+    "Fan Level": "45%",
+    "sclk clock level": "0: 500Mhz\n1: 2100Mhz *",
+    "mclk clock level": "0: 96Mhz\n1: 1000Mhz *",
+    "Performance Level": "auto"
+  }
+}
+JSON
+`)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: t.TempDir(),
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected one rocm-smi AMD GPU, got %#v", got)
+	}
+	gpu := got[0]
+	if gpu.Index != 0 || gpu.UUID != "0xabcdef123456" || gpu.Name != "AMD Radeon PRO W7900" {
+		t.Fatalf("unexpected rocm-smi AMD identity: %#v", gpu)
+	}
+	if gpu.Util != 68 || gpu.MemUtil != 40 || gpu.MemUsed != 13107 || gpu.MemTotal != 32768 {
+		t.Fatalf("unexpected rocm-smi AMD utilization/memory: %#v", gpu)
+	}
+	if gpu.Temp != 59 || gpu.PowerDraw != 220.5 || gpu.PowerLimit != 295 || gpu.Fan != 45 {
+		t.Fatalf("unexpected rocm-smi AMD sensors: %#v", gpu)
+	}
+	if gpu.SMClock != 2100 || gpu.MemClock != 1000 || gpu.GraphicsClock != 2100 || gpu.PState != "auto" {
+		t.Fatalf("unexpected rocm-smi AMD clocks/state: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerIgnoresAbsentAMDSources(t *testing.T) {
+	t.Parallel()
+
+	got := runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:                             prependTestPath(t.TempDir()),
+		testIntelDRMClassEnv:                    t.TempDir(),
+		"REMOTE_MONITOR_TEST_DISABLE_AMD_TOOLS": "1",
+	})
+	if got != "[]" {
+		t.Fatalf("expected no AMD GPUs without tooling or sysfs devices, got %q", got)
 	}
 }
 
@@ -557,6 +820,25 @@ func intelGPUSamplerModules() []string {
 	return []string{samplerJSONModule, samplerNVIDIAModule, samplerIntelModule}
 }
 
+func amdGPUJSONSnippet() string {
+	return strings.Join([]string{
+		`nvidia_smi_path=""`,
+		`if [ "${REMOTE_MONITOR_TEST_DISABLE_AMD_TOOLS:-0}" = "1" ]; then`,
+		`  amd_smi_path=""`,
+		`  rocm_smi_path=""`,
+		`else`,
+		`  amd_smi_path="$(command -v amd-smi 2>/dev/null || true)"`,
+		`  rocm_smi_path="$(command -v rocm-smi 2>/dev/null || true)"`,
+		`fi`,
+		`amd_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"`,
+		`build_amd_gpu_json`,
+	}, "\n")
+}
+
+func amdGPUSamplerModules() []string {
+	return []string{samplerJSONModule, samplerNVIDIAModule, samplerIntelModule, samplerAMDModule}
+}
+
 func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
 	t.Helper()
 
@@ -579,6 +861,30 @@ func writeIntelDRMFixture(t *testing.T, card string, files map[string]string) st
 	writeIntelDRMCardFixture(t, root, card, files)
 
 	return root
+}
+
+func writeAMDDRMFixture(t *testing.T, card string, files map[string]string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	writeIntelDRMCardFixture(t, root, card, files)
+
+	return root
+}
+
+func writeAMDSysfsFallbackFixture(t *testing.T) string {
+	t.Helper()
+
+	return writeAMDDRMFixture(t, "card2", map[string]string{
+		testIntelVendorFile:                  testAMDVendorValue,
+		testIntelDeviceFile:                  "0x744c\n",
+		testIntelUeventFile:                  "PCI_ID=1002:744C\nPCI_SLOT_NAME=0000:0b:00.0\n",
+		"device/hwmon/hwmon1/temp1_input":    "62000\n",
+		"device/hwmon/hwmon1/power1_average": "315500000\n",
+		"device/hwmon/hwmon1/power1_cap":     "355000000\n",
+		testVRAMTotalFile:                    "25769803776\n",
+		testVRAMUsedFile:                     "12884901888\n",
+	})
 }
 
 func writeIntelDRMCardFixture(t *testing.T, root, card string, files map[string]string) {
@@ -702,6 +1008,7 @@ func expectedSamplerModules() []string {
 		"network.sh",
 		samplerNVIDIAModule,
 		samplerIntelModule,
+		samplerAMDModule,
 		"main.sh",
 	}
 }

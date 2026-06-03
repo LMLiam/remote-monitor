@@ -10,4 +10,5 @@ disk.sh
 network.sh
 gpu_nvidia.sh
 gpu_intel.sh
+gpu_amd.sh
 main.sh

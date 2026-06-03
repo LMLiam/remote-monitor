@@ -52,4 +52,5 @@ go test -tags=integration ./...
 - `network.sh`: interface discovery, network counters, and TCP counters.
 - `gpu_nvidia.sh`: NVIDIA GPU metrics and GPU process metrics.
 - `gpu_intel.sh`: Intel GPU metrics from `xpu-smi`, `intel_gpu_top`, and `/sys/class/drm` fallbacks.
+- `gpu_amd.sh`: AMD GPU metrics from `amd-smi metric --json`, `rocm-smi --json`, and `/sys/class/drm` fallbacks.
 - `main.sh`: sampler initialization, timing loop, and final JSON assembly.
