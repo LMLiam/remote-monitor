@@ -62,10 +62,40 @@ export REMOTE_MONITOR_HOST=user@example-host
 remote-monitor
 ```
 
+Named profiles can keep host-specific defaults in TOML. By default, `remote-monitor` reads `$XDG_CONFIG_HOME/remote-monitor/config.toml`, falling back to `$HOME/.config/remote-monitor/config.toml`. Use `-config` to choose a different file.
+
+```sh
+remote-monitor -profile gpu-box
+remote-monitor -profile gpu-box -interval 2 -theme basic
+remote-monitor -config ~/.config/remote-monitor/config.toml -profile uni-server
+```
+
+```toml
+[profiles.gpu-box]
+host = "user@gpu-box"
+interval = 2
+history = 600
+stale_after = 7
+theme = "aurora"
+compact = true
+no_banner = false
+no_truecolor = false
+ssh_connect_timeout = 5
+ssh_server_alive = 5
+ssh_server_alive_count = 2
+ssh_control_persist = 30
+```
+
+Profile keys use snake case: `host`, `interval`, `history`, `stale_after`, `reconnect_delay`, `fps`, `theme`, `compact`, `no_banner`, `no_truecolor`, `ssh_connect_timeout`, `ssh_server_alive`, `ssh_server_alive_count`, and `ssh_control_persist`. Unknown keys, missing profiles, invalid TOML, and invalid profile values fail before monitoring starts.
+
+Precedence is: explicit CLI flags and positional host, then the selected profile, then environment variables, then built-in defaults. Unset profile keys fall through to the environment and built-in defaults.
+
 Useful flags:
 
 | Flag | Environment variable | Default |
 | --- | --- | --- |
+| `-profile` | none | disabled |
+| `-config` | none | `$XDG_CONFIG_HOME/remote-monitor/config.toml` or `$HOME/.config/remote-monitor/config.toml` |
 | `-host` | `REMOTE_MONITOR_HOST` | required |
 | `-interval` | `MONITOR_INTERVAL` | `1` second |
 | `-history` | `MONITOR_HISTORY_LIMIT` | `240` samples |
