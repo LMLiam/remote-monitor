@@ -53,6 +53,7 @@ remote-monitor user@example-host
 remote-monitor -host gpu-box -interval 2
 remote-monitor -theme basic -compact user@example-host
 remote-monitor -theme windows-xp user@example-host
+remote-monitor gpu-box -output jsonl -out samples.jsonl
 ```
 
 You can also set `REMOTE_MONITOR_HOST` and run without a host argument.
@@ -97,6 +98,8 @@ Useful flags:
 | `-profile` | none | disabled |
 | `-config` | none | `$XDG_CONFIG_HOME/remote-monitor/config.toml` or `$HOME/.config/remote-monitor/config.toml` |
 | `-host` | `REMOTE_MONITOR_HOST` | required |
+| `-output` | none | auto (`tui` on TTY stdout, `text` on non-TTY stdout) |
+| `-out` | none | disabled; supported with `-output jsonl` |
 | `-interval` | `MONITOR_INTERVAL` | `1` second |
 | `-history` | `MONITOR_HISTORY_LIMIT` | `240` samples |
 | `-stale-after` | `MONITOR_STALE_AFTER` | `interval * 3 + 1` seconds |
@@ -110,6 +113,17 @@ Useful flags:
 | `-ssh-server-alive` | `MONITOR_SSH_ALIVE_INTERVAL` | `5` seconds |
 | `-ssh-server-alive-count` | `MONITOR_SSH_ALIVE_COUNT` | `2` |
 | `-ssh-control-persist` | `MONITOR_SSH_CONTROL_PERSIST` | `30` seconds |
+
+## JSONL Export
+
+Use `-output jsonl` to write one machine-readable JSON object for each parsed sample. Without `-out`, JSONL is written to stdout and stdout contains only JSON objects, one per line. With `-out samples.jsonl`, the file is created or truncated before the SSH stream starts, and JSONL is written to that file while stdout stays empty.
+
+```sh
+remote-monitor gpu-box -output jsonl
+remote-monitor gpu-box -output jsonl -out samples.jsonl
+```
+
+JSONL exports use the normalized local schema `remote-monitor.normalized_sample.v1`, derived from `internal/core.Sample` after sampler parsing rather than the raw remote sampler JSON. Fields are snake_case and include host, CPU, memory, pressure, swap, disk, TCP, filesystem, network, process, GPU, and local `received_at` values. Repeated values such as `net`, `filesystems`, `cpu_core_usage`, `top_processes`, `gpu_processes`, and `gpus` are JSON arrays. Lifecycle and reconnect state are not included in the JSONL stream.
 
 ## WSL Host Metrics
 

@@ -14,6 +14,8 @@ import (
 const (
 	testExampleHost = "example-host"
 	testFlagConfig  = "-config"
+	testFlagOutput  = "-output"
+	testFlagOut     = "-out"
 	testFlagProfile = "-profile"
 	testFlagTheme   = "-theme"
 	testProfileName = "gpu-box"
@@ -154,6 +156,48 @@ func TestParseConfigAcceptsWindowsXPThemeFromEnvironment(t *testing.T) {
 
 	if cfg.Theme != core.ThemeWindowsXP {
 		t.Fatalf("theme = %q", cfg.Theme)
+	}
+}
+
+func TestParseConfigAcceptsOutputModes(t *testing.T) {
+	t.Parallel()
+
+	for _, mode := range []string{core.OutputModeTUI, core.OutputModeText, core.OutputModeJSONL} {
+		t.Run(mode, func(t *testing.T) {
+			t.Parallel()
+
+			cfg, err := config.ParseConfig([]string{testFlagOutput, mode, testExampleHost})
+			if err != nil {
+				t.Fatalf("ParseConfig returned error: %v", err)
+			}
+			if cfg.OutputMode != mode {
+				t.Fatalf("output mode = %q", cfg.OutputMode)
+			}
+		})
+	}
+}
+
+func TestParseConfigRejectsUnknownOutputMode(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	_, err := config.ParseConfig([]string{testFlagOutput, "csv", testExampleHost})
+	assertErrorContains(t, err, `unknown output mode "csv"`)
+	assertErrorContains(t, err, "tui, text, jsonl")
+}
+
+func TestParseConfigStoresJSONLOutputPath(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{testFlagOutput, core.OutputModeJSONL, testFlagOut, "samples.jsonl", testExampleHost})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.OutputMode != core.OutputModeJSONL {
+		t.Fatalf("output mode = %q", cfg.OutputMode)
+	}
+	if cfg.OutputPath != "samples.jsonl" {
+		t.Fatalf("output path = %q", cfg.OutputPath)
 	}
 }
 
