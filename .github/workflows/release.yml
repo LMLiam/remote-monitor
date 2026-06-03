@@ -5,6 +5,15 @@ on:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump to release
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
   contents: read
@@ -14,57 +23,94 @@ env:
   SYFT_VERSION: v1.38.0
 
 jobs:
-  snapshot:
-    name: Release Snapshot
+  prepare-release:
+    name: Prepare Manual Release
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      actions: read
+      contents: write
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      sha: ${{ steps.main.outputs.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: main
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Install GoReleaser
-        run: go install "github.com/goreleaser/goreleaser/v2@${GORELEASER_VERSION}"
-
-      - name: Install Syft
-        run: go install "github.com/anchore/syft/cmd/syft@${SYFT_VERSION}"
-
-      - name: Check GoReleaser config
-        run: goreleaser check
-
-      - name: Build snapshot artifacts
-        run: goreleaser release --snapshot --clean --skip=publish
-
-      - name: Verify Linux snapshot artifact
+      - name: Require main workflow ref
         run: |
-          archive="$(find dist -maxdepth 1 -name 'remote-monitor_*_linux_amd64.tar.gz' -print -quit)"
-          test -n "$archive"
-          mkdir -p /tmp/remote-monitor-release-check
-          tar -xzf "$archive" -C /tmp/remote-monitor-release-check
-          /tmp/remote-monitor-release-check/remote-monitor --help >/dev/null
-          /tmp/remote-monitor-release-check/remote-monitor --version
+          if [ "$GITHUB_REF_NAME" != "main" ]; then
+            echo "Manual releases must be dispatched from main, got ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+      - name: Resolve latest main
+        id: main
+        run: |
+          git fetch origin main --tags --force
+          main_sha="$(git rev-parse origin/main)"
+          head_sha="$(git rev-parse HEAD)"
+          if [ "$head_sha" != "$main_sha" ]; then
+            echo "Checked out ${head_sha}, but origin/main is ${main_sha}"
+            exit 1
+          fi
+          echo "sha=${main_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify latest main checks
+        env:
+          CHECK_WAIT_TIMEOUT_SECONDS: 900
+          CHECK_WAIT_INTERVAL_SECONDS: 20
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/verify-main-checks.sh "${{ steps.main.outputs.sha }}"
+
+      - name: Compute release tag
+        id: version
+        env:
+          RELEASE_BUMP: ${{ inputs.bump }}
+        run: |
+          mapfile -t tags < <(git tag --list 'v*.*.*')
+          tag="$(bash .github/scripts/next-release-tag.sh "$RELEASE_BUMP" "${tags[@]}")"
+          if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
+            echo "Release tag already exists: ${tag}"
+            exit 1
+          fi
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release tag
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_SHA: ${{ steps.main.outputs.sha }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$RELEASE_TAG" "$RELEASE_SHA" -m "remote-monitor ${RELEASE_TAG}"
+          git push origin "refs/tags/${RELEASE_TAG}"
+
+      - name: Summarize release tag
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          RELEASE_SHA: ${{ steps.main.outputs.sha }}
+        run: echo "Prepared ${RELEASE_TAG} at ${RELEASE_SHA}"
 
   release:
     name: Tagged Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: prepare-release
+    if: ${{ always() && (startsWith(github.ref, 'refs/tags/v') || needs.prepare-release.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       attestations: write
       contents: write
       id-token: write
+    env:
+      RELEASE_TAG: ${{ needs.prepare-release.outputs.tag || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
+          ref: ${{ needs.prepare-release.outputs.tag || github.ref_name }}
           fetch-depth: 0
 
       - name: Set up Go
@@ -91,11 +137,10 @@ jobs:
         run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ env.RELEASE_TAG }}
 
       - name: Prepare release metadata
         id: release-metadata
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           version="${RELEASE_TAG#v}"
           checksums="dist/remote-monitor_${version}_checksums.txt"
@@ -111,7 +156,6 @@ jobs:
       - name: Publish generated release notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           notes_args=("repos/${GITHUB_REPOSITORY}/releases/generate-notes")
           notes_args+=(-f "tag_name=${RELEASE_TAG}")
@@ -130,7 +174,6 @@ jobs:
       - name: Publish Homebrew formula
         env:
           TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ github.ref_name }}
           RELEASE_VERSION: ${{ steps.release-metadata.outputs.version }}
         run: |
           test -n "$TAP_GITHUB_TOKEN"
