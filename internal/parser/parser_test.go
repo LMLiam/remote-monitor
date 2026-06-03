@@ -4,6 +4,7 @@ import (
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/parser"
 
+	"strings"
 	"testing"
 )
 
@@ -195,6 +196,29 @@ func TestParserRejectsWrongProtocolVersion(t *testing.T) {
 	var p parser.Parser
 	if got, ok := p.HandleLine(`{"version":2}`); ok || got != nil {
 		t.Fatalf("expected version mismatch to be rejected: %#v %v", got, ok)
+	}
+}
+
+func TestParserReportsLastRejectedSampleLine(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	if got, ok := p.HandleLine(`{not-json`); ok || got != nil {
+		t.Fatalf("expected invalid JSON to be rejected: %#v %v", got, ok)
+	}
+	err := p.LastError()
+	if err == nil {
+		t.Fatal("expected parser rejection error")
+	}
+	if !strings.Contains(err.Error(), "parse sample JSON") {
+		t.Fatalf("parser error = %q", err.Error())
+	}
+
+	if got, ok := p.HandleLine(`{"version":1}`); !ok || got == nil {
+		t.Fatalf("expected valid sample to clear parser error: %#v %v", got, ok)
+	}
+	if err := p.LastError(); err != nil {
+		t.Fatalf("parser error after valid sample = %v", err)
 	}
 }
 
