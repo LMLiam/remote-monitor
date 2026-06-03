@@ -2,6 +2,7 @@ intel_sysfs_paths=()
 intel_sysfs_bdfs=()
 intel_sysfs_names=()
 intel_sysfs_uuids=()
+xpu_smi_bdfs=()
 
 round_float_to_int() {
   local value
@@ -86,7 +87,7 @@ read_first_existing_file() {
 }
 
 read_sysfs_uevent_field() {
-  local path key line
+  local path key line value
   path="$1"
   key="$2"
   if [ ! -r "${path}" ]; then
@@ -179,6 +180,33 @@ intel_sysfs_index_for_bdf() {
   done
 
   printf '%s' '-1'
+}
+
+xpu_smi_has_bdf() {
+  local bdf xpu_bdf
+  bdf="$(trim "${1:-}")"
+  if [ -z "${bdf}" ]; then
+    return 1
+  fi
+
+  for xpu_bdf in "${xpu_smi_bdfs[@]}"; do
+    if [ "${xpu_bdf}" = "${bdf}" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+intel_sysfs_has_unmatched_devices() {
+  local sysfs_idx
+  for ((sysfs_idx = 0; sysfs_idx < ${#intel_sysfs_paths[@]}; sysfs_idx++)); do
+    if ! xpu_smi_has_bdf "${intel_sysfs_bdfs[sysfs_idx]}"; then
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 intel_sysfs_mem_total_mib() {
@@ -329,16 +357,44 @@ read_xpu_smi_stats_dump() {
     return
   fi
 
-  "${xpu_smi_path}" dump -d "${device_id}" -m 0,1,2,3,17,18,22,23,24,25,35,36 -i 1 -n 1 2>/dev/null || true
+  "${xpu_smi_path}" dump -d "${device_id}" -m 0,1,2,3,18,22,23,24,25,35,36 -i 1 -n 1 2>/dev/null || true
+}
+
+record_xpu_smi_bdfs_from_discovery() {
+  local discovery line device_id name uuid bdf mem_total_text
+  discovery="${1:-}"
+  xpu_smi_bdfs=()
+
+  while IFS= read -r line || [ -n "${line}" ]; do
+    case "${line}" in
+      ''|Device\ ID,*)
+        continue
+        ;;
+    esac
+
+    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<< "${line}"
+    device_id="$(normalize_int "$(csv_clean_field "${device_id}")")"
+    if [ "${device_id}" -lt 0 ]; then
+      continue
+    fi
+    bdf="$(csv_clean_field "${bdf}")"
+    if [ -n "${bdf}" ]; then
+      xpu_smi_bdfs+=("${bdf}")
+    fi
+  done <<< "${discovery}"
 }
 
 build_xpu_smi_gpu_json() {
-  local discovery line comma='' index='0'
+  local discovery line comma='' index
   local device_id name uuid bdf mem_total_text mem_total
   local stats stats_line timestamp stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock
   local sysfs_idx sysfs_temp sysfs_power_limit
 
-  discovery="$(read_xpu_smi_discovery_dump)"
+  discovery="${1:-}"
+  index="$(normalize_int "${2:-0}")"
+  if [ "${index}" -lt 0 ]; then
+    index='0'
+  fi
   if [ -z "${discovery}" ]; then
     printf '[]'
     return
@@ -382,12 +438,11 @@ build_xpu_smi_gpu_json() {
     stats="$(read_xpu_smi_stats_dump "${device_id}")"
     stats_line="$(printf '%s\n' "${stats}" | awk 'NF && $1 !~ /^Timestamp/ { line=$0 } END { print line }')"
     if [ -n "${stats_line}" ]; then
-      IFS=',' read -r timestamp stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<< "${stats_line}"
+      IFS=',' read -r timestamp stat_device_id util power_draw sm_clock temp mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<< "${stats_line}"
       util="$(round_float_to_int "${util}")"
       power_draw="$(normalize_float "${power_draw}")"
       sm_clock="$(normalize_int "${sm_clock}")"
       temp="$(normalize_int "${temp}")"
-      mem_util="$(round_float_to_int "${mem_util}")"
       mem_used="$(round_float_to_int "${mem_used}")"
       compute_util="$(round_float_to_int "${compute_util}")"
       render_util="$(round_float_to_int "${render_util}")"
@@ -448,7 +503,18 @@ build_intel_gpu_top_or_sysfs_json() {
   local top_json top_util render_util compute_util video_util video_enhance_util
   local actual_clock requested_clock power_draw
   local idx sysfs_idx uuid name mem_used mem_total mem_util temp power_limit sysfs_clock sysfs_max_clock emit_clock emit_max_clock
-  local comma=''
+  local base_index emitted comma=''
+
+  base_index="$(normalize_int "${1:-0}")"
+  if [ "${base_index}" -lt 0 ]; then
+    base_index='0'
+  fi
+  emitted='0'
+
+  if [ "${base_index}" -gt 0 ] && ! intel_sysfs_has_unmatched_devices; then
+    printf '[]'
+    return
+  fi
 
   top_json="$(read_intel_gpu_top_sample)"
   top_util='-1'
@@ -482,7 +548,11 @@ build_intel_gpu_top_or_sysfs_json() {
   printf '['
   if [ "${#intel_sysfs_paths[@]}" -gt 0 ]; then
     for ((sysfs_idx = 0; sysfs_idx < ${#intel_sysfs_paths[@]}; sysfs_idx++)); do
-      idx="${sysfs_idx}"
+      if xpu_smi_has_bdf "${intel_sysfs_bdfs[sysfs_idx]}"; then
+        continue
+      fi
+
+      idx=$((base_index + emitted))
       uuid="${intel_sysfs_uuids[sysfs_idx]}"
       name="${intel_sysfs_names[sysfs_idx]}"
       mem_used="$(intel_sysfs_mem_used_mib "${sysfs_idx}")"
@@ -518,8 +588,13 @@ build_intel_gpu_top_or_sysfs_json() {
         "${emit_max_clock}" \
         "${emit_clock}"
       comma=','
+      emitted=$((emitted + 1))
     done
   else
+    if [ "${base_index}" -gt 0 ]; then
+      printf ']'
+      return
+    fi
     printf '{"index":0,"uuid":"intel-gpu","name":"Intel GPU","util_percent":%s,"mem_util_percent":-1,"encoder_util_percent":-1,"decoder_util_percent":%s,"mem_used_mib":-1,"mem_total_mib":-1,"temp_c":-1,"power_draw_w":%s,"power_limit_w":-1,"fan_percent":-1,"sm_clock_mhz":%s,"sm_clock_max_mhz":%s,"mem_clock_mhz":-1,"mem_clock_max_mhz":-1,"graphics_clock_mhz":%s,"video_clock_mhz":-1,"pcie_gen_current":-1,"pcie_gen_max":-1,"pcie_width_current":-1,"pcie_width_max":-1,"throttle_reasons":"","p_state":""}' \
       "${top_util}" \
       "${video_util}" \
@@ -557,19 +632,28 @@ combine_gpu_json_arrays() {
   printf ']'
 }
 
-build_intel_gpu_json() {
-  local xpu_json intel_json xpu_body
-  discover_intel_drm_devices
-
-  xpu_json="$(build_xpu_smi_gpu_json)"
-  xpu_body="$(json_array_body "${xpu_json}")"
-  if [ -n "${xpu_body}" ]; then
-    printf '%s' "${xpu_json}"
+json_array_count() {
+  local body
+  body="$(json_array_body "${1:-[]}")"
+  if [ -z "${body}" ]; then
+    printf '%s' '0'
     return
   fi
 
-  intel_json="$(build_intel_gpu_top_or_sysfs_json)"
-  printf '%s' "${intel_json}"
+  printf '%s' "${body}" | awk '{ count += gsub(/"index"[[:space:]]*:/, "&") } END { print count + 0 }'
+}
+
+build_intel_gpu_json() {
+  local xpu_discovery xpu_json intel_json xpu_count
+  discover_intel_drm_devices
+
+  xpu_discovery="$(read_xpu_smi_discovery_dump)"
+  record_xpu_smi_bdfs_from_discovery "${xpu_discovery}"
+  xpu_json="$(build_xpu_smi_gpu_json "${xpu_discovery}" 0)"
+  xpu_count="$(json_array_count "${xpu_json}")"
+
+  intel_json="$(build_intel_gpu_top_or_sysfs_json "${xpu_count}")"
+  combine_gpu_json_arrays "${xpu_json}" "${intel_json}"
 }
 
 build_gpu_json() {

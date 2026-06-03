@@ -138,7 +138,7 @@ GPU collection is best-effort and vendor tooling is optional. Hosts without supp
 
 NVIDIA metrics use `nvidia-smi` when it is available. Remote Monitor collects device identity, utilization, memory, thermals, power, fan, clock, PCIe, throttle, performance-state, and top compute-process rows supported by the installed driver.
 
-Intel metrics use these sources in order:
+Intel metrics merge these sources when they are available:
 
 | Source | Typical stack | Metrics |
 | --- | --- | --- |
@@ -146,7 +146,7 @@ Intel metrics use these sources in order:
 | `xpu-smi discovery --dump` and `xpu-smi dump` | Intel discrete GPU / Level Zero stacks | device identity, UUID, memory total/used/utilization, utilization, temperature, power, graphics/media clocks, media utilization, and throttle reason when exposed |
 | `/sys/class/drm` | kernel fallback | Intel device identity plus available VRAM, temperature, power limit, and graphics clocks |
 
-Intel platforms vary in what the kernel and tools expose. Unsupported metrics use the same sentinel values as other GPU collectors and hidden vendor-detail rows are omitted from the dashboard. `intel_gpu_top` may require perf counter access; unsupported hardware, missing permissions, absent tools, or dashed tool values are treated as unavailable metrics. Windows Intel GPU collection is not currently supported.
+Intel platforms vary in what the kernel and tools expose. XPU-SMI devices are de-duplicated with matching DRM sysfs devices by PCI BDF so mixed Intel systems can report both discrete and integrated GPUs. Unsupported metrics use the same sentinel values as other GPU collectors and hidden vendor-detail rows are omitted from the dashboard. `intel_gpu_top` may require perf counter access; unsupported hardware, missing permissions, absent tools, or dashed tool values are treated as unavailable metrics. Windows Intel GPU collection is not currently supported.
 
 ## Development
 

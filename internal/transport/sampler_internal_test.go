@@ -21,6 +21,10 @@ const (
 	testWSLDistroEnv                    = "WSL_DISTRO_NAME"
 	testWSLDistroName                   = "Ubuntu"
 	testIntelDRMClassEnv                = "REMOTE_MONITOR_DRM_CLASS_DIR"
+	testIntelVendorFile                 = "device/vendor"
+	testIntelDeviceFile                 = "device/device"
+	testIntelUeventFile                 = "device/uevent"
+	testIntelVendorValue                = "0x8086\n"
 	samplerJSONModule                   = "json.sh"
 	samplerNVIDIAModule                 = "gpu_nvidia.sh"
 	samplerIntelModule                  = "gpu_intel.sh"
@@ -273,11 +277,11 @@ cat <<'JSON'
 }
 ]
 JSON
-`)
+	`)
 	drmDir := writeIntelDRMFixture(t, "card0", map[string]string{
-		"device/vendor":                   "0x8086\n",
-		"device/device":                   "0x56a5\n",
-		"device/uevent":                   "PCI_ID=8086:56A5\nPCI_SLOT_NAME=0000:03:00.0\n",
+		testIntelVendorFile:               testIntelVendorValue,
+		testIntelDeviceFile:               "0x56a5\n",
+		testIntelUeventFile:               "PCI_ID=8086:56A5\nPCI_SLOT_NAME=0000:03:00.0\n",
 		"device/hwmon/hwmon0/temp1_input": "53000\n",
 		"device/hwmon/hwmon0/power1_cap":  "45000000\n",
 		"device/mem_info_vram_total":      "8589934592\n",
@@ -313,9 +317,9 @@ func TestRemoteSamplerBuildsIntelGPUJSONFromSysfsWhenToolIsMissing(t *testing.T)
 	t.Parallel()
 
 	drmDir := writeIntelDRMFixture(t, "card1", map[string]string{
-		"device/vendor":                   "0x8086\n",
-		"device/device":                   "0x9a49\n",
-		"device/uevent":                   "PCI_ID=8086:9A49\nPCI_SLOT_NAME=0000:00:02.0\n",
+		testIntelVendorFile:               testIntelVendorValue,
+		testIntelDeviceFile:               "0x9a49\n",
+		testIntelUeventFile:               "PCI_ID=8086:9A49\nPCI_SLOT_NAME=0000:00:02.0\n",
 		"device/hwmon/hwmon2/temp1_input": "44000\n",
 	})
 
@@ -353,8 +357,8 @@ CSV
 fi
 if [ "$1" = "dump" ]; then
   cat <<'CSV'
-Timestamp, DeviceId, Average % utilization of all GPU Engines, GPU Power (W), GPU Frequency (MHz), GPU Core Temperature (Celsius Degree), GPU Memory Bandwidth Utilization (%), GPU Memory Used (MiB), Compute engine utilizations (%), Render engine utilizations (%), Media decoder engine utilizations (%), Media encoder engine utilizations (%), Throttle reason, Media Engine Frequency (MHz)
-06:14:46.000, 0, 55.25, 88.50, 1450, 64, 40.50, 8192, 61.00, 48.00, 14.00, 9.00, "power cap", 950
+Timestamp, DeviceId, Average % utilization of all GPU Engines, GPU Power (W), GPU Frequency (MHz), GPU Core Temperature (Celsius Degree), GPU Memory Used (MiB), Compute engine utilizations (%), Render engine utilizations (%), Media decoder engine utilizations (%), Media encoder engine utilizations (%), Throttle reason, Media Engine Frequency (MHz)
+06:14:46.000, 0, 55.25, 88.50, 1450, 64, 8192, 61.00, 48.00, 14.00, 9.00, "power cap", 950
 CSV
   exit 0
 fi
@@ -372,7 +376,7 @@ exit 1
 	if gpu.Index != 0 || gpu.UUID != "00000000-0000-0000-0000-56c000008086" || gpu.Name != "Intel(R) Data Center GPU Flex 170" {
 		t.Fatalf("unexpected xpu-smi Intel identity: %#v", gpu)
 	}
-	if gpu.Util != 55 || gpu.MemUtil != 41 || gpu.MemUsed != 8192 || gpu.MemTotal != 16384 {
+	if gpu.Util != 55 || gpu.MemUtil != 50 || gpu.MemUsed != 8192 || gpu.MemTotal != 16384 {
 		t.Fatalf("unexpected xpu-smi Intel utilization/memory: %#v", gpu)
 	}
 	if gpu.PowerDraw != 88.5 || gpu.Temp != 64 || gpu.SMClock != 1450 || gpu.VideoClock != 950 {
@@ -380,6 +384,60 @@ exit 1
 	}
 	if gpu.EncoderUtil != 9 || gpu.DecoderUtil != 14 || gpu.ThrottleReasons != "power cap" {
 		t.Fatalf("unexpected xpu-smi Intel media/throttle: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerMergesXPUSMIWithSysfsIntelDevices(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "xpu-smi"), `#!/bin/sh
+if [ "$1" = "discovery" ] && [ "$2" = "--dump" ]; then
+  cat <<'CSV'
+Device ID,Device Name,UUID,PCI BDF Address,Memory Physical Size
+0,"Intel(R) Data Center GPU Flex 170","00000000-0000-0000-0000-56c000008086","0000:4d:00.0","16384.00 MiB"
+CSV
+  exit 0
+fi
+if [ "$1" = "dump" ]; then
+  cat <<'CSV'
+Timestamp, DeviceId, Average % utilization of all GPU Engines, GPU Power (W), GPU Frequency (MHz), GPU Core Temperature (Celsius Degree), GPU Memory Used (MiB), Compute engine utilizations (%), Render engine utilizations (%), Media decoder engine utilizations (%), Media encoder engine utilizations (%), Throttle reason, Media Engine Frequency (MHz)
+06:14:46.000, 0, 55.25, 88.50, 1450, 64, 8192, 61.00, 48.00, 14.00, 9.00, "power cap", 950
+CSV
+  exit 0
+fi
+exit 1
+	`)
+	drmDir := t.TempDir()
+	writeIntelDRMCardFixture(t, drmDir, "card0", map[string]string{
+		testIntelVendorFile: testIntelVendorValue,
+		testIntelDeviceFile: "0x56c0\n",
+		testIntelUeventFile: "PCI_ID=8086:56C0\nPCI_SLOT_NAME=0000:4d:00.0\n",
+	})
+	writeIntelDRMCardFixture(t, drmDir, "card1", map[string]string{
+		testIntelVendorFile:               testIntelVendorValue,
+		testIntelDeviceFile:               "0x9a49\n",
+		testIntelUeventFile:               "PCI_ID=8086:9A49\nPCI_SLOT_NAME=0000:00:02.0\n",
+		"device/hwmon/hwmon2/temp1_input": "44000\n",
+		"device/mem_info_vram_total":      "2147483648\n",
+		"device/mem_info_vram_used":       "536870912\n",
+	})
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: drmDir,
+	}))
+	if len(got) != 2 {
+		t.Fatalf("expected xpu-smi and sysfs Intel GPUs, got %#v", got)
+	}
+	if got[0].Index != 0 || got[0].UUID != "00000000-0000-0000-0000-56c000008086" {
+		t.Fatalf("unexpected xpu-smi Intel GPU: %#v", got[0])
+	}
+	if got[1].Index != 1 || got[1].UUID != "intel-0000:00:02.0" || got[1].Name != "Intel GPU 8086:9A49" {
+		t.Fatalf("unexpected sysfs Intel GPU: %#v", got[1])
+	}
+	if got[1].MemUsed != 512 || got[1].MemTotal != 2048 || got[1].MemUtil != 25 || got[1].Temp != 44 {
+		t.Fatalf("unexpected merged sysfs Intel metrics: %#v", got[1])
 	}
 }
 
@@ -457,6 +515,14 @@ func writeIntelDRMFixture(t *testing.T, card string, files map[string]string) st
 	t.Helper()
 
 	root := t.TempDir()
+	writeIntelDRMCardFixture(t, root, card, files)
+
+	return root
+}
+
+func writeIntelDRMCardFixture(t *testing.T, root, card string, files map[string]string) {
+	t.Helper()
+
 	cardRoot := filepath.Join(root, card)
 	if err := os.MkdirAll(cardRoot, 0o700); err != nil {
 		t.Fatalf("create drm fixture card: %v", err)
@@ -470,8 +536,6 @@ func writeIntelDRMFixture(t *testing.T, card string, files map[string]string) st
 			t.Fatalf("write drm fixture %s: %v", name, err)
 		}
 	}
-
-	return root
 }
 
 func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) string {
