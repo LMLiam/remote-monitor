@@ -1,6 +1,7 @@
 package transport
 
 import (
+	"bytes"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -11,6 +12,8 @@ import (
 
 const (
 	samplerScriptMode       fs.FileMode = 0o600
+	samplerModulesDir                   = "sampler"
+	samplerManifestPath                 = "sampler/manifest.txt"
 	testPathEnv                         = "PATH"
 	testWSLDistroEnv                    = "WSL_DISTRO_NAME"
 	testWSLDistroName                   = "Ubuntu"
@@ -18,6 +21,40 @@ const (
 	applyWSLHostMetricsLine             = `apply_wsl_host_metrics`
 	allHostMetricsPrintLine             = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
 )
+
+func TestRemoteSamplerMatchesAssembledModules(t *testing.T) {
+	t.Parallel()
+
+	assembled := assembleSamplerModulesForTest(t)
+	if !bytes.Equal([]byte(remoteSampler), assembled) {
+		t.Fatalf("embedded sampler.sh is not the deterministic assembly of %s; run the sampler assembly step", samplerManifestPath)
+	}
+}
+
+func TestRemoteSamplerModuleManifestCoversExpectedCollectors(t *testing.T) {
+	t.Parallel()
+
+	manifest := readSamplerManifestForTest(t)
+	expected := expectedSamplerModules()
+	if strings.Join(manifest, "\n") != strings.Join(expected, "\n") {
+		t.Fatalf("sampler manifest changed unexpectedly\nwant %s\n got %s", expected, manifest)
+	}
+	for _, module := range manifest {
+		if _, err := os.Stat(filepath.Join(samplerModulesDir, module)); err != nil {
+			t.Fatalf("sampler module %s is not available: %v", module, err)
+		}
+	}
+}
+
+func TestRemoteSamplerPressureModuleCanBeSourcedIndependently(t *testing.T) {
+	t.Parallel()
+
+	pressureFile := writeSamplerTestFile(t, "some avg10=1.23 avg60=2.00 avg300=3.00 total=4\nfull avg10=0.45 avg60=1.00 avg300=2.00 total=3\n")
+	got := runSamplerModuleSnippet(t, []string{"json.sh", "pressure.sh"}, "read_pressure_avg10 "+shellQuote(pressureFile), nil)
+	if got != "1.23|0.45" {
+		t.Fatalf("expected pressure module to parse avg10 values, got %q", got)
+	}
+}
 
 func TestRemoteSamplerShellSyntax(t *testing.T) {
 	t.Parallel()
@@ -235,13 +272,118 @@ func wslHostMetricSnippet(cpuName, cpuFreqMHz, cpuMaxFreqMHz, cpuTempC, printLin
 func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) string {
 	t.Helper()
 
+	script := samplerFunctionPreamble(t) + "\n" + snippet + "\n"
+
+	return runRawSamplerSnippet(t, script, env)
+}
+
+func runSamplerModuleSnippet(t *testing.T, modules []string, snippet string, env map[string]string) string {
+	t.Helper()
+
+	var script strings.Builder
+	for _, module := range modules {
+		modulePath := filepath.Join(samplerModulesDir, module)
+		if _, err := os.Stat(modulePath); err != nil {
+			t.Fatalf("sampler module %s is not available: %v", modulePath, err)
+		}
+		script.WriteString(". ")
+		script.WriteString(shellQuote(modulePath))
+		script.WriteByte('\n')
+	}
+	script.WriteString(snippet)
+
+	return runRawSamplerSnippet(t, script.String(), env)
+}
+
+func samplerFunctionPreamble(t *testing.T) string {
+	t.Helper()
+
+	const mainMarker = "\nremote_name=\"$(hostname)\""
+	preamble, _, found := strings.Cut(remoteSampler, mainMarker)
+	if !found {
+		t.Fatalf("sampler script missing main marker %q", mainMarker)
+	}
+
+	return preamble
+}
+
+func assembleSamplerModulesForTest(t *testing.T) []byte {
+	t.Helper()
+
+	var assembled bytes.Buffer
+	for index, module := range readSamplerManifestForTest(t) {
+		if filepath.Base(module) != module {
+			t.Fatalf("sampler manifest module %q must be a file name", module)
+		}
+		path := filepath.Join(samplerModulesDir, module)
+		// #nosec G304 -- module is restricted to a file name listed by the local test fixture manifest.
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read sampler module %s: %v", path, err)
+		}
+		if index > 0 {
+			assembled.WriteByte('\n')
+		}
+		if _, err := assembled.Write(contents); err != nil {
+			t.Fatalf("assemble sampler module %s: %v", path, err)
+		}
+		if len(contents) == 0 || contents[len(contents)-1] != '\n' {
+			assembled.WriteByte('\n')
+		}
+	}
+
+	return assembled.Bytes()
+}
+
+func readSamplerManifestForTest(t *testing.T) []string {
+	t.Helper()
+
+	contents, err := os.ReadFile(samplerManifestPath)
+	if err != nil {
+		t.Fatalf("read sampler manifest %s: %v", samplerManifestPath, err)
+	}
+
+	var modules []string
+	for line := range strings.SplitSeq(string(contents), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		modules = append(modules, line)
+	}
+	if len(modules) == 0 {
+		t.Fatalf("sampler manifest %s does not list any modules", samplerManifestPath)
+	}
+
+	return modules
+}
+
+func expectedSamplerModules() []string {
+	return []string{
+		"config.sh",
+		"json.sh",
+		"cpu.sh",
+		"processes.sh",
+		"memory.sh",
+		"pressure.sh",
+		"wsl.sh",
+		"filesystems.sh",
+		"disk.sh",
+		"network.sh",
+		"gpu_nvidia.sh",
+		"main.sh",
+	}
+}
+
+func runRawSamplerSnippet(t *testing.T, script string, env map[string]string) string {
+	t.Helper()
+
 	if _, err := exec.LookPath("bash"); err != nil {
 		t.Skip("bash is required to validate sampler functions")
 	}
 
 	scriptPath := filepath.Join(t.TempDir(), "sampler-functions.sh")
-	script := samplerFunctionPreamble(t) + "\n" + snippet + "\n"
-	if err := os.WriteFile(scriptPath, []byte(script), samplerScriptMode); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(script+"\n"), samplerScriptMode); err != nil {
 		t.Fatalf("write sampler function script: %v", err)
 	}
 
@@ -269,18 +411,6 @@ func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) stri
 	}
 
 	return strings.TrimSpace(string(output))
-}
-
-func samplerFunctionPreamble(t *testing.T) string {
-	t.Helper()
-
-	const mainMarker = "\nremote_name=\"$(hostname)\""
-	preamble, _, found := strings.Cut(remoteSampler, mainMarker)
-	if !found {
-		t.Fatalf("sampler script missing main marker %q", mainMarker)
-	}
-
-	return preamble
 }
 
 func writeSamplerTestFile(t *testing.T, content string) string {

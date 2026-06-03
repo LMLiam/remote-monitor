@@ -1,0 +1,12 @@
+config.sh
+json.sh
+cpu.sh
+processes.sh
+memory.sh
+pressure.sh
+wsl.sh
+filesystems.sh
+disk.sh
+network.sh
+gpu_nvidia.sh
+main.sh
