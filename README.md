@@ -55,6 +55,7 @@ remote-monitor -host gpu-box -interval 2
 remote-monitor -theme basic -compact user@example-host
 remote-monitor -theme windows-xp user@example-host
 remote-monitor gpu-box -output jsonl -out samples.jsonl
+remote-monitor gpu-box -process-sort mem -process-filter postgres -process-count 20
 ```
 
 You can also set `REMOTE_MONITOR_HOST` and run without a host argument.
@@ -101,6 +102,9 @@ Useful flags:
 | `-host` | `REMOTE_MONITOR_HOST` | required |
 | `-output` | none | auto (`tui` on TTY stdout, `text` on non-TTY stdout) |
 | `-out` | none | disabled; supported with `-output jsonl` |
+| `-process-sort` | none | `cpu` (`cpu`, `mem`) |
+| `-process-filter` | none | disabled |
+| `-process-count` | none | `4` |
 | `-interval` | `MONITOR_INTERVAL` | `1` second |
 | `-history` | `MONITOR_HISTORY_LIMIT` | `240` samples |
 | `-stale-after` | `MONITOR_STALE_AFTER` | `interval * 3 + 1` seconds |
@@ -114,6 +118,13 @@ Useful flags:
 | `-ssh-server-alive` | `MONITOR_SSH_ALIVE_INTERVAL` | `5` seconds |
 | `-ssh-server-alive-count` | `MONITOR_SSH_ALIVE_COUNT` | `2` |
 | `-ssh-control-persist` | `MONITOR_SSH_CONTROL_PERSIST` | `30` seconds |
+
+Process rows are sorted by descending CPU by default, preserving the original
+dashboard behavior. Use `-process-sort mem` to sort by descending resident
+memory instead. `-process-filter` applies a case-insensitive substring match
+against the process command name and full command line exposed by `ps`; the
+displayed process column remains the command name. Filtering is applied before
+the `-process-count` row limit.
 
 ## JSONL Export
 

@@ -43,7 +43,7 @@ go test -tags=integration ./...
 - `config.sh`: runtime defaults and refresh interval helpers.
 - `json.sh`: shared string escaping and numeric normalization.
 - `cpu.sh`: CPU snapshots, clocks, model name, temperature, and core JSON.
-- `processes.sh`: top process sampling and JSON.
+- `processes.sh`: top process sampling, filtering, sorting, count limiting, and JSON.
 - `memory.sh`: RAM and swap counters.
 - `pressure.sh`: Linux pressure stall information.
 - `wsl.sh`: WSL detection and optional Windows host metrics.

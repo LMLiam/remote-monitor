@@ -18,6 +18,12 @@ var ErrEmptyHost = errors.New("host cannot be empty")
 // ErrUnknownOutputMode reports an unsupported -output value.
 var ErrUnknownOutputMode = errors.New("unknown output mode")
 
+// ErrUnknownProcessSort reports an unsupported -process-sort value.
+var ErrUnknownProcessSort = errors.New("unknown process sort mode")
+
+// ErrInvalidProcessCount reports an unsupported -process-count value.
+var ErrInvalidProcessCount = errors.New("invalid process count")
+
 const (
 	defaultHistoryLimit       = 240
 	defaultReconnectDelaySecs = 2
@@ -51,6 +57,9 @@ func ParseConfig(args []string) (core.Config, error) {
 	showVersion := fs.Bool("version", false, "Print version information and exit")
 	outputMode := fs.String("output", core.OutputModeAuto, "Output mode (tui, text, jsonl)")
 	outputPath := fs.String("out", "", "Write JSONL output to this file")
+	processSort := fs.String("process-sort", cliValues.processSort, "Process sort order (cpu, mem)")
+	processFilter := fs.String("process-filter", cliValues.processFilter, "Case-insensitive process filter text")
+	processCount := fs.Int("process-count", cliValues.processCount, "Maximum process rows per sample")
 	theme := fs.String("theme", cliValues.theme, "Color theme (aurora, basic, windows-xp)")
 	noTrueColor := fs.Bool("no-truecolor", cliValues.noTrueColor, "Force 256-color rendering even on truecolor terminals")
 	sshConnectTimeout := fs.Int("ssh-connect-timeout", cliValues.sshConnectTimeout, "SSH connect timeout in seconds")
@@ -69,10 +78,20 @@ func ParseConfig(args []string) (core.Config, error) {
 	if err != nil {
 		return core.Config{}, err
 	}
+	resolvedProcessSort, err := parseProcessSort(*processSort)
+	if err != nil {
+		return core.Config{}, err
+	}
+	if *processCount < 1 {
+		return core.Config{}, fmt.Errorf("%w: process count must be at least 1", ErrInvalidProcessCount)
+	}
 
 	cliValues = configValues{
 		host:              *host,
 		interval:          *interval,
+		processSort:       resolvedProcessSort,
+		processFilter:     strings.TrimSpace(*processFilter),
+		processCount:      *processCount,
 		history:           *history,
 		staleAfter:        *staleAfter,
 		reconnectDelay:    *reconnectDelay,
@@ -113,6 +132,9 @@ func ParseConfig(args []string) (core.Config, error) {
 	return core.Config{
 		Host:               resolved.host,
 		Interval:           time.Duration(resolved.interval) * time.Second,
+		ProcessSort:        resolved.processSort,
+		ProcessFilter:      resolved.processFilter,
+		ProcessCount:       resolved.processCount,
 		HistoryLimit:       resolved.history,
 		StaleAfter:         time.Duration(resolved.staleAfter) * time.Second,
 		ReconnectBaseDelay: time.Duration(resolved.reconnectDelay) * time.Second,
@@ -142,9 +164,24 @@ func parseOutputMode(mode string) (string, error) {
 	}
 }
 
+func parseProcessSort(mode string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(mode))
+	switch trimmed {
+	case "", core.ProcessSortCPU:
+		return core.ProcessSortCPU, nil
+	case core.ProcessSortMemory:
+		return core.ProcessSortMemory, nil
+	default:
+		return "", fmt.Errorf("%w %q (expected one of: cpu, mem)", ErrUnknownProcessSort, mode)
+	}
+}
+
 type configValues struct {
 	host              string
 	interval          int
+	processSort       string
+	processFilter     string
+	processCount      int
 	history           int
 	staleAfter        int
 	reconnectDelay    int
@@ -165,6 +202,9 @@ func configValuesFromEnv() configValues {
 	return configValues{
 		host:              getenvDefault("REMOTE_MONITOR_HOST", ""),
 		interval:          intervalDefault,
+		processSort:       core.ProcessSortCPU,
+		processFilter:     "",
+		processCount:      core.DefaultProcessCount,
 		history:           getenvInt("MONITOR_HISTORY_LIMIT", defaultHistoryLimit),
 		staleAfter:        getenvInt("MONITOR_STALE_AFTER", intervalDefault*3+1),
 		reconnectDelay:    getenvInt("MONITOR_RECONNECT_DELAY", defaultReconnectDelaySecs),
@@ -235,6 +275,15 @@ func applyExplicitFlags(resolved *configValues, cli configValues, explicit map[s
 	}
 	if explicit["interval"] {
 		resolved.interval = cli.interval
+	}
+	if explicit["process-sort"] {
+		resolved.processSort = cli.processSort
+	}
+	if explicit["process-filter"] {
+		resolved.processFilter = cli.processFilter
+	}
+	if explicit["process-count"] {
+		resolved.processCount = cli.processCount
 	}
 	if explicit["history"] {
 		resolved.history = cli.history

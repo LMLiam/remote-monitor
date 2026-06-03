@@ -6,6 +6,7 @@ import (
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -25,6 +26,9 @@ func SSHArgs(cfg core.Config, intervalSeconds int) []string {
 		"-o", "ControlPath=" + controlPath,
 		cfg.Host,
 		"bash", "-s", "--", strconv.Itoa(intervalSeconds),
+		normalizedProcessSort(cfg),
+		sshShellQuote(cfg.ProcessFilter),
+		strconv.Itoa(normalizedProcessCount(cfg)),
 	}
 }
 
@@ -37,6 +41,27 @@ func ResolveSSHControlPath(cfg core.Config) string {
 	sum := sha256.Sum256([]byte(cfg.Host))
 
 	return fmt.Sprintf("/tmp/rm-%d-%x.sock", os.Getpid(), sum[:6])
+}
+
+func normalizedProcessSort(cfg core.Config) string {
+	switch cfg.ProcessSort {
+	case core.ProcessSortMemory:
+		return core.ProcessSortMemory
+	default:
+		return core.ProcessSortCPU
+	}
+}
+
+func normalizedProcessCount(cfg core.Config) int {
+	if cfg.ProcessCount < 1 {
+		return core.DefaultProcessCount
+	}
+
+	return cfg.ProcessCount
+}
+
+func sshShellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
 }
 
 func durationSeconds(d time.Duration) int {

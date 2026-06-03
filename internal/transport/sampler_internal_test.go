@@ -20,6 +20,7 @@ const (
 	testPathEnv                         = "PATH"
 	testWSLDistroEnv                    = "WSL_DISTRO_NAME"
 	testWSLDistroName                   = "Ubuntu"
+	samplerProcessesModule              = "processes.sh"
 	testIntelDRMClassEnv                = "REMOTE_MONITOR_DRM_CLASS_DIR"
 	testIntelVendorFile                 = "device/vendor"
 	testIntelDeviceFile                 = "device/device"
@@ -86,6 +87,66 @@ func TestRemoteSamplerShellSyntax(t *testing.T) {
 	cmd.Dir = filepath.Dir(path)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("sampler script failed bash syntax check: %v\n%s", err, output)
+	}
+}
+
+func TestRemoteSamplerFiltersProcessesBeforeCountLimit(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "ps"), `#!/bin/sh
+cat <<'PS'
+101 95.4 102400 postgres postgres: writer process
+102 83.2 204800 python app.py
+103 12.4 409600 bash helper
+104 7.1 512000 Python worker.py
+105 1.3 1024 awk -v self=123
+106 0.8 2048 python3 manage.py
+PS
+`)
+
+	got := runSamplerModuleSnippet(t, []string{samplerProcessesModule}, strings.Join([]string{
+		`process_sort="cpu"`,
+		`process_filter="PYTHON"`,
+		`process_count=2`,
+		`read_top_process_snapshot`,
+	}, "\n"), map[string]string{
+		testPathEnv: prependTestPath(binDir),
+	})
+	const want = "102|83|200|python\n104|7|500|Python"
+	if got != want {
+		t.Fatalf("process snapshot mismatch\nwant %q\n got %q", want, got)
+	}
+}
+
+func TestRemoteSamplerUsesMemorySortWhenRequested(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	argsPath := filepath.Join(t.TempDir(), "ps.args")
+	writeExecutable(t, filepath.Join(binDir, "ps"), `#!/bin/sh
+printf '%s\n' "$*" > "${PS_ARGS_FILE}"
+cat <<'PS'
+201 2.2 1048576 postgres writer
+202 44.8 1024 python worker.py
+PS
+`)
+
+	got := runSamplerModuleSnippet(t, []string{samplerProcessesModule}, strings.Join([]string{
+		`process_sort="mem"`,
+		`process_filter=""`,
+		`process_count=4`,
+		`read_top_process_snapshot`,
+	}, "\n"), map[string]string{
+		testPathEnv:    prependTestPath(binDir),
+		"PS_ARGS_FILE": argsPath,
+	})
+	if !strings.Contains(readTestFile(t, argsPath), "--sort=-rss,-pcpu") {
+		t.Fatalf("expected memory ps sort args, got %q", readTestFile(t, argsPath))
+	}
+	const want = "201|2|1024|postgres\n202|45|1|python"
+	if got != want {
+		t.Fatalf("process snapshot mismatch\nwant %q\n got %q", want, got)
 	}
 }
 
@@ -701,6 +762,18 @@ func writeExecutable(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o700); err != nil {
 		t.Fatalf("write executable %s: %v", path, err)
 	}
+}
+
+func readTestFile(t *testing.T, path string) string {
+	t.Helper()
+
+	// #nosec G304 -- path is created inside the calling test's temporary directory.
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+
+	return string(contents)
 }
 
 func shellQuote(value string) string {
