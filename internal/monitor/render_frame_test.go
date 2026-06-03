@@ -189,6 +189,43 @@ func TestRenderWideFrameUsesSeparateTablesAndAnimatedBanner(t *testing.T) {
 	}
 }
 
+func TestRenderWideFrameHidesUnavailableGPUVendorDetails(t *testing.T) {
+	t.Parallel()
+
+	state := testWideFrameState()
+	state.Current.GPUs = []core.GPUStat{testGPUStat(func(gpu *core.GPUStat) {
+		gpu.Index = 0
+		gpu.UUID = "intel-0000:00:02.0"
+		gpu.Name = "Intel GPU"
+		gpu.Util = 42
+		gpu.MemUtil = -1
+		gpu.EncoderUtil = -1
+		gpu.DecoderUtil = -1
+		gpu.MemUsed = -1
+		gpu.MemTotal = -1
+		gpu.Temp = 44
+		gpu.PowerDraw = -1
+		gpu.PowerLimit = -1
+		gpu.Fan = -1
+		gpu.SMClock = 1016
+		gpu.MaxSMClock = -1
+		gpu.MemClock = -1
+		gpu.MaxMemClock = -1
+		gpu.GraphicsClock = 1016
+		gpu.VideoClock = -1
+		gpu.PCIeGenCurrent = -1
+		gpu.PCIeGenMax = -1
+		gpu.PCIeWidthCurrent = -1
+		gpu.PCIeWidthMax = -1
+		gpu.ThrottleReasons = ""
+		gpu.PState = ""
+	})}
+
+	cleaned := ansi.StripANSI(render.FullFrame(state, 176, 48))
+	assertTextContainsAll(t, "Intel GPU frame", cleaned, []string{testGPU0Load, testGPU0Temp, testGPU0SM, testGPU0Graphics})
+	assertTextOmitsAll(t, "Intel GPU frame", cleaned, []string{testGPU0Encoder, testGPU0Decoder, testGPU0Fan, testGPU0PState, testGPU0Video, testGPU0PCIe, testGPU0Throttle})
+}
+
 func wideFrameRequiredText() []string {
 	return []string{
 		"██▀███  ▓█████  ███▄ ▄███▓",
@@ -266,22 +303,22 @@ func wideFrameRequiredText() []string {
 		"4242",
 		"2.0 GiB",
 		testThreeGiB,
-		"GPU0 Temp",
+		testGPU0Temp,
 		"GPU0 Power",
 		"GPU0 Mem Util",
-		"GPU0 Encoder",
-		"GPU0 Decoder",
-		"GPU0 Fan",
-		"GPU0 PState",
+		testGPU0Encoder,
+		testGPU0Decoder,
+		testGPU0Fan,
+		testGPU0PState,
 		"idle / cool",
-		"GPU0 SM",
+		testGPU0SM,
 		"GPU0 Mem",
-		"GPU0 Graphics",
-		"GPU0 Video",
-		"GPU0 PCIe",
+		testGPU0Graphics,
+		testGPU0Video,
+		testGPU0PCIe,
 		"Gen3 x8",
 		"max Gen4 x16",
-		"GPU0 Throttle",
+		testGPU0Throttle,
 		"POWER CAP",
 		"210 / 2100 MHz",
 		"810 / 7501 MHz",
@@ -323,7 +360,7 @@ func assertTextOmitsAll(t *testing.T, label, text string, unwanted []string) {
 func assertWideFrameTrackStyling(t *testing.T, frame string) {
 	t.Helper()
 	lines := strings.Split(frame, "\n")
-	for _, label := range []string{render.LabelCPUActive, render.LabelCPUImbalance, render.LabelCPUFreq, render.LabelCPUTemp, render.LabelCPUUser, render.LabelCPUPSI, render.LabelRAMAvail, render.LabelRAMCache, render.LabelRAMFree, render.LabelMemPSI, "Net eth0 RX", "Net eth0 TX", "GPU0 Mem Util", "GPU0 Encoder", "GPU0 Temp", "GPU0 Power", "GPU0 SM", "GPU0 Mem", "GPU0 PCIe"} {
+	for _, label := range []string{render.LabelCPUActive, render.LabelCPUImbalance, render.LabelCPUFreq, render.LabelCPUTemp, render.LabelCPUUser, render.LabelCPUPSI, render.LabelRAMAvail, render.LabelRAMCache, render.LabelRAMFree, render.LabelMemPSI, "Net eth0 RX", "Net eth0 TX", "GPU0 Mem Util", testGPU0Encoder, testGPU0Temp, "GPU0 Power", testGPU0SM, "GPU0 Mem", testGPU0PCIe} {
 		assertRenderedTrackRow(t, lines, label)
 	}
 }
@@ -346,7 +383,7 @@ func assertRenderedTrackRow(t *testing.T, lines []string, label string) {
 func assertWideFrameAvoidsRepeatedGPUName(t *testing.T, cleaned string) {
 	t.Helper()
 	for line := range strings.SplitSeq(cleaned, "\n") {
-		if strings.Contains(line, "GPU0 Load") && strings.Contains(line, "NVIDIA") {
+		if strings.Contains(line, testGPU0Load) && strings.Contains(line, "NVIDIA") {
 			t.Fatalf("gpu load row should not repeat gpu name: %q", line)
 		}
 	}

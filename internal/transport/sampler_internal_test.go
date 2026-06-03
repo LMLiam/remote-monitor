@@ -2,12 +2,15 @@ package transport
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	core "github.com/lmliam/remote-monitor/internal/core"
 )
 
 const (
@@ -17,6 +20,10 @@ const (
 	testPathEnv                         = "PATH"
 	testWSLDistroEnv                    = "WSL_DISTRO_NAME"
 	testWSLDistroName                   = "Ubuntu"
+	testIntelDRMClassEnv                = "REMOTE_MONITOR_DRM_CLASS_DIR"
+	samplerJSONModule                   = "json.sh"
+	samplerNVIDIAModule                 = "gpu_nvidia.sh"
+	samplerIntelModule                  = "gpu_intel.sh"
 	readWSLHostMetricsLine              = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
 	applyWSLHostMetricsLine             = `apply_wsl_host_metrics`
 	allHostMetricsPrintLine             = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
@@ -50,7 +57,7 @@ func TestRemoteSamplerPressureModuleCanBeSourcedIndependently(t *testing.T) {
 	t.Parallel()
 
 	pressureFile := writeSamplerTestFile(t, "some avg10=1.23 avg60=2.00 avg300=3.00 total=4\nfull avg10=0.45 avg60=1.00 avg300=2.00 total=3\n")
-	got := runSamplerModuleSnippet(t, []string{"json.sh", "pressure.sh"}, "read_pressure_avg10 "+shellQuote(pressureFile), nil)
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule, "pressure.sh"}, "read_pressure_avg10 "+shellQuote(pressureFile), nil)
 	if got != "1.23|0.45" {
 		t.Fatalf("expected pressure module to parse avg10 values, got %q", got)
 	}
@@ -246,6 +253,149 @@ func TestRemoteSamplerCanDisableWSLHostMetrics(t *testing.T) {
 	}
 }
 
+func TestRemoteSamplerBuildsIntelGPUJSONFromIntelGPUTop(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "intel_gpu_top"), `#!/bin/sh
+cat <<'JSON'
+[
+{
+  "period": {"duration": 1000.000000, "unit": "ms"},
+  "frequency": {"requested": 1300.000000, "actual": 1016.400000, "unit": "MHz"},
+  "power": {"GPU": 14.750000, "Package": 31.500000, "unit": "W"},
+  "engines": {
+    "Render/3D": {"busy": 42.800000, "sema": 0.000000, "wait": 0.000000, "unit": "%"},
+    "Compute": {"busy": 61.200000, "sema": 0.000000, "wait": 0.000000, "unit": "%"},
+    "Video": {"busy": 7.400000, "sema": 0.000000, "wait": 0.000000, "unit": "%"}
+  },
+  "clients": {}
+}
+]
+JSON
+`)
+	drmDir := writeIntelDRMFixture(t, "card0", map[string]string{
+		"device/vendor":                   "0x8086\n",
+		"device/device":                   "0x56a5\n",
+		"device/uevent":                   "PCI_ID=8086:56A5\nPCI_SLOT_NAME=0000:03:00.0\n",
+		"device/hwmon/hwmon0/temp1_input": "53000\n",
+		"device/hwmon/hwmon0/power1_cap":  "45000000\n",
+		"device/mem_info_vram_total":      "8589934592\n",
+		"device/mem_info_vram_used":       "3221225472\n",
+	})
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: drmDir,
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected one Intel GPU, got %#v", got)
+	}
+	gpu := got[0]
+	if gpu.Index != 0 || gpu.UUID != "intel-0000:03:00.0" || gpu.Name != "Intel GPU 8086:56A5" {
+		t.Fatalf("unexpected Intel GPU identity: %#v", gpu)
+	}
+	if gpu.Util != 61 || gpu.SMClock != 1016 || gpu.GraphicsClock != 1016 {
+		t.Fatalf("unexpected Intel utilization/clocks: %#v", gpu)
+	}
+	if gpu.MemUsed != 3072 || gpu.MemTotal != 8192 || gpu.MemUtil != 38 {
+		t.Fatalf("unexpected Intel memory values: %#v", gpu)
+	}
+	if gpu.Temp != 53 || gpu.PowerDraw != 14.75 || gpu.PowerLimit != 45 {
+		t.Fatalf("unexpected Intel thermal/power values: %#v", gpu)
+	}
+	if gpu.EncoderUtil != -1 || gpu.DecoderUtil != 7 || gpu.Fan != -1 || gpu.PState != "" {
+		t.Fatalf("unexpected Intel sentinel/source values: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerBuildsIntelGPUJSONFromSysfsWhenToolIsMissing(t *testing.T) {
+	t.Parallel()
+
+	drmDir := writeIntelDRMFixture(t, "card1", map[string]string{
+		"device/vendor":                   "0x8086\n",
+		"device/device":                   "0x9a49\n",
+		"device/uevent":                   "PCI_ID=8086:9A49\nPCI_SLOT_NAME=0000:00:02.0\n",
+		"device/hwmon/hwmon2/temp1_input": "44000\n",
+	})
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(t.TempDir()),
+		testIntelDRMClassEnv: drmDir,
+		"REMOTE_MONITOR_TEST_DISABLE_INTEL_TOOLS": "1",
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected one sysfs Intel GPU, got %#v", got)
+	}
+	gpu := got[0]
+	if gpu.Index != 0 || gpu.UUID != "intel-0000:00:02.0" || gpu.Name != "Intel GPU 8086:9A49" {
+		t.Fatalf("unexpected sysfs Intel identity: %#v", gpu)
+	}
+	if gpu.Util != -1 || gpu.MemUsed != -1 || gpu.MemTotal != -1 || gpu.Temp != 44 || gpu.PowerDraw != -1 {
+		t.Fatalf("expected sysfs Intel sentinel metrics with temperature, got %#v", gpu)
+	}
+	if gpu.PState != "" {
+		t.Fatalf("expected unavailable Intel p-state to stay hidden, got %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerBuildsIntelGPUJSONFromXPUSMI(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "xpu-smi"), `#!/bin/sh
+if [ "$1" = "discovery" ] && [ "$2" = "--dump" ]; then
+  cat <<'CSV'
+Device ID,Device Name,UUID,PCI BDF Address,Memory Physical Size
+0,"Intel(R) Data Center GPU Flex 170","00000000-0000-0000-0000-56c000008086","0000:4d:00.0","16384.00 MiB"
+CSV
+  exit 0
+fi
+if [ "$1" = "dump" ]; then
+  cat <<'CSV'
+Timestamp, DeviceId, Average % utilization of all GPU Engines, GPU Power (W), GPU Frequency (MHz), GPU Core Temperature (Celsius Degree), GPU Memory Bandwidth Utilization (%), GPU Memory Used (MiB), Compute engine utilizations (%), Render engine utilizations (%), Media decoder engine utilizations (%), Media encoder engine utilizations (%), Throttle reason, Media Engine Frequency (MHz)
+06:14:46.000, 0, 55.25, 88.50, 1450, 64, 40.50, 8192, 61.00, 48.00, 14.00, 9.00, "power cap", 950
+CSV
+  exit 0
+fi
+exit 1
+`)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: t.TempDir(),
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected one xpu-smi Intel GPU, got %#v", got)
+	}
+	gpu := got[0]
+	if gpu.Index != 0 || gpu.UUID != "00000000-0000-0000-0000-56c000008086" || gpu.Name != "Intel(R) Data Center GPU Flex 170" {
+		t.Fatalf("unexpected xpu-smi Intel identity: %#v", gpu)
+	}
+	if gpu.Util != 55 || gpu.MemUtil != 41 || gpu.MemUsed != 8192 || gpu.MemTotal != 16384 {
+		t.Fatalf("unexpected xpu-smi Intel utilization/memory: %#v", gpu)
+	}
+	if gpu.PowerDraw != 88.5 || gpu.Temp != 64 || gpu.SMClock != 1450 || gpu.VideoClock != 950 {
+		t.Fatalf("unexpected xpu-smi Intel power/temp/clocks: %#v", gpu)
+	}
+	if gpu.EncoderUtil != 9 || gpu.DecoderUtil != 14 || gpu.ThrottleReasons != "power cap" {
+		t.Fatalf("unexpected xpu-smi Intel media/throttle: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerIgnoresAbsentIntelSources(t *testing.T) {
+	t.Parallel()
+
+	got := runSamplerModuleSnippet(t, intelGPUSamplerModules(), intelGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(t.TempDir()),
+		testIntelDRMClassEnv: t.TempDir(),
+		"REMOTE_MONITOR_TEST_DISABLE_INTEL_TOOLS": "1",
+	})
+	if got != "[]" {
+		t.Fatalf("expected no Intel GPUs without tooling or sysfs devices, got %q", got)
+	}
+}
+
 func wslHostMetricSnippet(cpuName, cpuFreqMHz, cpuMaxFreqMHz, cpuTempC, printLine string) string {
 	return strings.Join([]string{
 		readWSLHostMetricsLine,
@@ -267,6 +417,61 @@ func wslHostMetricSnippet(cpuName, cpuFreqMHz, cpuMaxFreqMHz, cpuTempC, printLin
 		applyWSLHostMetricsLine,
 		printLine,
 	}, "\n")
+}
+
+func intelGPUJSONSnippet() string {
+	return strings.Join([]string{
+		`nvidia_smi_path=""`,
+		`if [ "${REMOTE_MONITOR_TEST_DISABLE_INTEL_TOOLS:-0}" = "1" ]; then`,
+		`  intel_gpu_top_path=""`,
+		`  xpu_smi_path=""`,
+		`else`,
+		`  intel_gpu_top_path="$(command -v intel_gpu_top 2>/dev/null || true)"`,
+		`  xpu_smi_path="$(command -v xpu-smi 2>/dev/null || true)"`,
+		`fi`,
+		`intel_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"`,
+		`build_gpu_json`,
+	}, "\n")
+}
+
+func intelGPUSamplerModules() []string {
+	return []string{samplerJSONModule, samplerNVIDIAModule, samplerIntelModule}
+}
+
+func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
+	t.Helper()
+
+	var got []core.GPUStat
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("parse GPU JSON %q: %v", raw, err)
+	}
+
+	return got
+}
+
+func prependTestPath(dir string) string {
+	return dir + string(os.PathListSeparator) + os.Getenv(testPathEnv)
+}
+
+func writeIntelDRMFixture(t *testing.T, card string, files map[string]string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	cardRoot := filepath.Join(root, card)
+	if err := os.MkdirAll(cardRoot, 0o700); err != nil {
+		t.Fatalf("create drm fixture card: %v", err)
+	}
+	for name, contents := range files {
+		path := filepath.Join(cardRoot, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("create drm fixture dir: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(contents), samplerScriptMode); err != nil {
+			t.Fatalf("write drm fixture %s: %v", name, err)
+		}
+	}
+
+	return root
 }
 
 func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) string {
@@ -361,7 +566,7 @@ func readSamplerManifestForTest(t *testing.T) []string {
 func expectedSamplerModules() []string {
 	return []string{
 		"config.sh",
-		"json.sh",
+		samplerJSONModule,
 		"cpu.sh",
 		"processes.sh",
 		"memory.sh",
@@ -370,7 +575,8 @@ func expectedSamplerModules() []string {
 		"filesystems.sh",
 		"disk.sh",
 		"network.sh",
-		"gpu_nvidia.sh",
+		samplerNVIDIAModule,
+		samplerIntelModule,
 		"main.sh",
 	}
 }

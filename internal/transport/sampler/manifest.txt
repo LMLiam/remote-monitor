@@ -9,4 +9,5 @@ filesystems.sh
 disk.sh
 network.sh
 gpu_nvidia.sh
+gpu_intel.sh
 main.sh

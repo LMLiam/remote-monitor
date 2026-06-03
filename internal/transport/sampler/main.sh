@@ -5,6 +5,9 @@ root_source="$(df -P / | awk 'NR==2 {print $1}')"
 root_device=''
 page_size_bytes="$(getconf PAGESIZE 2>/dev/null || printf '4096')"
 nvidia_smi_path="$(command -v nvidia-smi 2>/dev/null || true)"
+intel_gpu_top_path="$(command -v intel_gpu_top 2>/dev/null || true)"
+xpu_smi_path="$(command -v xpu-smi 2>/dev/null || true)"
+intel_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 filesystem_refresh_samples="$(refresh_samples_for_seconds "${filesystem_refresh_seconds}")"
 sample_index=0
 root_usage_cache=''
