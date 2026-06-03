@@ -197,3 +197,31 @@ func TestParserRejectsWrongProtocolVersion(t *testing.T) {
 		t.Fatalf("expected version mismatch to be rejected: %#v %v", got, ok)
 	}
 }
+
+func TestParserBuildsIntelGPUFromSamplerJSON(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"remote":"intel-host","gpus":[{"index":0,"uuid":"intel-0000:03:00.0","name":"Intel GPU 8086:56A5","util_percent":61,"mem_util_percent":38,"encoder_util_percent":-1,"decoder_util_percent":7,"mem_used_mib":3072,"mem_total_mib":8192,"temp_c":53,"power_draw_w":14.75,"power_limit_w":45.0,"fan_percent":-1,"sm_clock_mhz":1016,"sm_clock_max_mhz":1300,"mem_clock_mhz":-1,"mem_clock_max_mhz":-1,"graphics_clock_mhz":1016,"video_clock_mhz":-1,"pcie_gen_current":-1,"pcie_gen_max":-1,"pcie_width_current":-1,"pcie_width_max":-1,"throttle_reasons":"","p_state":""}]}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected completed Intel GPU sample from Parser")
+	}
+	if len(got.GPUs) != 1 {
+		t.Fatalf("expected one Intel GPU, got %#v", got.GPUs)
+	}
+	gpu := got.GPUs[0]
+	if gpu.UUID != "intel-0000:03:00.0" || gpu.Name != "Intel GPU 8086:56A5" || gpu.Util != 61 {
+		t.Fatalf("unexpected Intel GPU identity/utilization: %#v", gpu)
+	}
+	if gpu.MemUsed != 3072 || gpu.MemTotal != 8192 || gpu.MemUtil != 38 {
+		t.Fatalf("unexpected Intel GPU memory: %#v", gpu)
+	}
+	if gpu.Temp != 53 || gpu.PowerDraw != 14.75 || gpu.SMClock != 1016 || gpu.GraphicsClock != 1016 {
+		t.Fatalf("unexpected Intel GPU telemetry: %#v", gpu)
+	}
+	if gpu.EncoderUtil != -1 || gpu.Fan != -1 || gpu.PState != "" {
+		t.Fatalf("expected unavailable Intel vendor details to use sentinels, got %#v", gpu)
+	}
+}

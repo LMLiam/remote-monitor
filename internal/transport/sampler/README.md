@@ -51,4 +51,5 @@ go test -tags=integration ./...
 - `disk.sh`: root disk counters and JSON.
 - `network.sh`: interface discovery, network counters, and TCP counters.
 - `gpu_nvidia.sh`: NVIDIA GPU metrics and GPU process metrics.
+- `gpu_intel.sh`: Intel GPU metrics from `xpu-smi`, `intel_gpu_top`, and `/sys/class/drm` fallbacks.
 - `main.sh`: sampler initialization, timing loop, and final JSON assembly.

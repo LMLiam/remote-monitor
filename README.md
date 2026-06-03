@@ -4,7 +4,7 @@
 
 Terminal UI for monitoring a remote Linux host over SSH.
 
-`remote-monitor` streams a small Bash sampler to the target host and renders CPU, memory, disk, network, process, and optional NVIDIA GPU metrics locally. The remote machine does not need a daemon, agent, or checked-out copy of this repository.
+`remote-monitor` streams a small Bash sampler to the target host and renders CPU, memory, disk, network, process, and optional NVIDIA or Intel GPU metrics locally. The remote machine does not need a daemon, agent, or checked-out copy of this repository.
 
 ## Features
 
@@ -12,7 +12,7 @@ Terminal UI for monitoring a remote Linux host over SSH.
 - Non-interactive text output when stdout is not a TTY.
 - SSH reconnects with keepalive and control socket reuse.
 - Rolling history for load, pressure, memory, disks, network, GPU, and temperatures.
-- Linux host sampling from `/proc`, `/sys`, `df`, `ps`, `awk`, and optional `nvidia-smi`.
+- Linux host sampling from `/proc`, `/sys`, `df`, `ps`, `awk`, and optional GPU tooling.
 - Strict native Go CI with `gofmt`, `go vet`, `go test`, `golangci-lint`, and compile checks.
 
 ## Requirements
@@ -21,6 +21,7 @@ Terminal UI for monitoring a remote Linux host over SSH.
 - Local `ssh` client.
 - SSH access to a Linux host with Bash and common core utilities.
 - Optional NVIDIA GPU metrics when `nvidia-smi` is available on the remote host.
+- Optional Intel GPU metrics from `intel_gpu_top`, `xpu-smi`, or `/sys/class/drm` on the remote host.
 
 ## Install
 
@@ -130,6 +131,22 @@ JSONL exports use the normalized local schema `remote-monitor.normalized_sample.
 When the remote sampler detects WSL, it can call `powershell.exe` or `pwsh.exe` from inside WSL to fill host metrics that Linux paths do not expose. It checks the WSL `PATH` first and then standard Windows PowerShell install paths, which helps SSH sessions where Windows directories are not exported. It currently probes Windows CPU name, logical core count, current and max CPU clocks, physical RAM totals and availability, and CPU temperature when a hardware monitor exposes CPU package/core sensors through LibreHardwareMonitor or OpenHardwareMonitor WMI. Windows ACPI thermal zones are ignored because they are often chassis or firmware zones rather than CPU package sensors.
 
 Set `REMOTE_MONITOR_WSL_HOST_METRICS=0` in the remote WSL environment to disable Windows host probing. Set `REMOTE_MONITOR_WSL_HOST_METRICS_TIMEOUT` to change the PowerShell timeout from the default `2s`.
+
+## GPU Metrics
+
+GPU collection is best-effort and vendor tooling is optional. Hosts without supported GPU tools or exposed GPU devices still emit valid samples with an empty GPU list.
+
+NVIDIA metrics use `nvidia-smi` when it is available. Remote Monitor collects device identity, utilization, memory, thermals, power, fan, clock, PCIe, throttle, performance-state, and top compute-process rows supported by the installed driver.
+
+Intel metrics merge these sources when they are available:
+
+| Source | Typical stack | Metrics |
+| --- | --- | --- |
+| `intel_gpu_top -J -s 100 -n 1 -o -` | i915 / intel-gpu-tools | render, compute, media, overall utilization, graphics clock, and GPU power when exposed |
+| `xpu-smi discovery --dump` and `xpu-smi dump` | Intel discrete GPU / Level Zero stacks | device identity, UUID, memory total/used/utilization, utilization, temperature, power, graphics/media clocks, media utilization, and throttle reason when exposed |
+| `/sys/class/drm` | kernel fallback | Intel device identity plus available VRAM, temperature, power limit, and graphics clocks |
+
+Intel platforms vary in what the kernel and tools expose. XPU-SMI devices are de-duplicated with matching DRM sysfs devices by PCI BDF so mixed Intel systems can report both discrete and integrated GPUs. Unsupported metrics use the same sentinel values as other GPU collectors and hidden vendor-detail rows are omitted from the dashboard. `intel_gpu_top` may require perf counter access; unsupported hardware, missing permissions, absent tools, or dashed tool values are treated as unavailable metrics. Windows Intel GPU collection is not currently supported.
 
 ## Development
 

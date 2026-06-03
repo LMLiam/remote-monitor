@@ -83,7 +83,7 @@ build_gpu_process_json() {
   printf ']'
 }
 
-build_gpu_json() {
+build_nvidia_gpu_json() {
   local idx uuid name util mem_util mem_used mem_total temp power_draw power_limit fan sm_clock sm_clock_max mem_clock mem_clock_max pstate
   local gpu_combined_output=''
   local gpu_output=''
