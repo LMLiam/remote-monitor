@@ -269,6 +269,36 @@ interval = 3
 	}
 }
 
+func TestParseConfigUsesHomeConfigPathFallback(t *testing.T) {
+	clearConfigEnv(t)
+	homeDir := t.TempDir()
+	t.Setenv("HOME", homeDir)
+	configDir := filepath.Join(homeDir, ".config", "remote-monitor")
+	if err := os.MkdirAll(configDir, 0o750); err != nil {
+		t.Fatalf("create config dir: %v", err)
+	}
+	configPath := filepath.Join(configDir, "config.toml")
+	if err := os.WriteFile(configPath, []byte(`
+[profiles.gpu-box]
+host = "user@home-fallback"
+interval = 5
+`), 0o600); err != nil {
+		t.Fatalf("write config file: %v", err)
+	}
+
+	cfg, err := config.ParseConfig([]string{testFlagProfile, testProfileName})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if cfg.Host != "user@home-fallback" {
+		t.Fatalf("host = %q", cfg.Host)
+	}
+	if got := int(cfg.Interval.Seconds()); got != 5 {
+		t.Fatalf("interval = %d", got)
+	}
+}
+
 func TestParseConfigAppliesCLIProfileEnvironmentPrecedence(t *testing.T) {
 	clearConfigEnv(t)
 	t.Setenv("REMOTE_MONITOR_HOST", "env-host")
@@ -320,6 +350,55 @@ no_banner = false
 	if cfg.NoBanner {
 		t.Fatalf("no banner = %t", cfg.NoBanner)
 	}
+}
+
+func TestParseConfigPreservesDirectHostInputsWithProfiles(t *testing.T) {
+	//nolint:paralleltest // These subtests use t.Setenv through clearConfigEnv.
+	t.Run("host flag overrides selected profile", func(t *testing.T) {
+		clearConfigEnv(t)
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "profile-host"
+interval = 4
+`)
+
+		cfg, err := config.ParseConfig([]string{
+			testFlagConfig, configPath,
+			testFlagProfile, testProfileName,
+			"-host", "flag-host",
+		})
+		if err != nil {
+			t.Fatalf("ParseConfig returned error: %v", err)
+		}
+
+		if cfg.Host != "flag-host" {
+			t.Fatalf("host = %q", cfg.Host)
+		}
+		if got := int(cfg.Interval.Seconds()); got != 4 {
+			t.Fatalf("interval = %d", got)
+		}
+	})
+
+	t.Run("environment host fills unset profile host", func(t *testing.T) {
+		clearConfigEnv(t)
+		t.Setenv("REMOTE_MONITOR_HOST", "env-host")
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+interval = 6
+`)
+
+		cfg, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		if err != nil {
+			t.Fatalf("ParseConfig returned error: %v", err)
+		}
+
+		if cfg.Host != "env-host" {
+			t.Fatalf("host = %q", cfg.Host)
+		}
+		if got := int(cfg.Interval.Seconds()); got != 6 {
+			t.Fatalf("interval = %d", got)
+		}
+	})
 }
 
 func TestParseConfigReportsProfileErrors(t *testing.T) {
