@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -13,6 +14,9 @@ import (
 
 // ErrEmptyHost reports a missing SSH host in parsed configuration.
 var ErrEmptyHost = errors.New("host cannot be empty")
+
+// ErrUnknownOutputMode reports an unsupported -output value.
+var ErrUnknownOutputMode = errors.New("unknown output mode")
 
 const (
 	defaultHistoryLimit       = 240
@@ -45,6 +49,8 @@ func ParseConfig(args []string) (core.Config, error) {
 	compact := fs.Bool("compact", cliValues.compact, "Use a compact stacked layout")
 	noBanner := fs.Bool("no-banner", cliValues.noBanner, "Disable the large rendered title banner")
 	showVersion := fs.Bool("version", false, "Print version information and exit")
+	outputMode := fs.String("output", core.OutputModeAuto, "Output mode (tui, text, jsonl)")
+	outputPath := fs.String("out", "", "Write JSONL output to this file")
 	theme := fs.String("theme", cliValues.theme, "Color theme (aurora, basic, windows-xp)")
 	noTrueColor := fs.Bool("no-truecolor", cliValues.noTrueColor, "Force 256-color rendering even on truecolor terminals")
 	sshConnectTimeout := fs.Int("ssh-connect-timeout", cliValues.sshConnectTimeout, "SSH connect timeout in seconds")
@@ -58,6 +64,10 @@ func ParseConfig(args []string) (core.Config, error) {
 
 	if *showVersion {
 		return versionOnlyConfig(), nil
+	}
+	resolvedOutputMode, err := parseOutputMode(*outputMode)
+	if err != nil {
+		return core.Config{}, err
 	}
 
 	cliValues = configValues{
@@ -110,6 +120,8 @@ func ParseConfig(args []string) (core.Config, error) {
 		Compact:            resolved.compact,
 		NoBanner:           resolved.noBanner,
 		ShowVersion:        false,
+		OutputMode:         resolvedOutputMode,
+		OutputPath:         *outputPath,
 		Theme:              resolved.theme,
 		DisableTrueColor:   resolved.noTrueColor,
 		SSHConnectTimeout:  time.Duration(resolved.sshConnectTimeout) * time.Second,
@@ -118,6 +130,16 @@ func ParseConfig(args []string) (core.Config, error) {
 		SSHControlPersist:  time.Duration(resolved.sshControlPersist) * time.Second,
 		SSHControlPath:     "",
 	}, nil
+}
+
+func parseOutputMode(mode string) (string, error) {
+	trimmed := strings.ToLower(strings.TrimSpace(mode))
+	switch trimmed {
+	case core.OutputModeAuto, core.OutputModeTUI, core.OutputModeText, core.OutputModeJSONL:
+		return trimmed, nil
+	default:
+		return "", fmt.Errorf("%w %q (expected one of: tui, text, jsonl)", ErrUnknownOutputMode, mode)
+	}
 }
 
 type configValues struct {

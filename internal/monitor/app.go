@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,12 +13,23 @@ import (
 	"github.com/lmliam/remote-monitor/internal/config"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/metrics"
+	jsonl "github.com/lmliam/remote-monitor/internal/output"
 	"github.com/lmliam/remote-monitor/internal/render"
 	"github.com/lmliam/remote-monitor/internal/transport"
 	"github.com/lmliam/remote-monitor/internal/version"
 )
 
 const streamChannelBuffer = 32
+
+var errOutRequiresJSONL = errors.New("-out requires -output jsonl")
+
+type streamRunner func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent)
+
+type runDependencies struct {
+	stdout      io.Writer
+	stdoutIsTTY func() bool
+	runStream   streamRunner
+}
 
 // RunCLI parses process configuration and starts the monitor application.
 func RunCLI() error {
@@ -39,47 +51,217 @@ func Run(ctx context.Context, args []string, stdout io.Writer) error {
 		return err
 	}
 
-	return run(ctx, cfg)
+	return run(ctx, cfg, defaultRunDependencies(stdout))
 }
 
-func run(ctx context.Context, cfg core.Config) error {
+func defaultRunDependencies(stdout io.Writer) runDependencies {
+	return runDependencies{
+		stdout:      stdout,
+		stdoutIsTTY: render.StdoutIsTTY,
+		runStream:   transport.RunStream,
+	}
+}
+
+func run(ctx context.Context, cfg core.Config, deps runDependencies) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
+
+	deps = normalizeRunDependencies(deps)
+	outputMode := resolveOutputMode(cfg, deps.stdoutIsTTY())
+	outputWriter, closeOutput, err := openOutputWriter(cfg, outputMode, deps.stdout)
+	if err != nil {
+		return err
+	}
 
 	state := initialAppState(cfg)
 
 	sampleCh := make(chan core.Sample, streamChannelBuffer)
 	eventCh := make(chan core.StreamEvent, streamChannelBuffer)
-	go transport.RunStream(ctx, cfg, sampleCh, eventCh)
+	go deps.runStream(ctx, cfg, sampleCh, eventCh)
 
-	isTTY := render.StdoutIsTTY()
-	if isTTY {
-		return runTUI(ctx, state, sampleCh, eventCh)
+	var runErr error
+	switch outputMode {
+	case core.OutputModeTUI:
+		runErr = runTUI(ctx, state, sampleCh, eventCh)
+	case core.OutputModeJSONL:
+		runErr = runJSONL(ctx, state, sampleCh, eventCh, outputWriter)
+	default:
+		runErr = runText(ctx, cfg, state, sampleCh, eventCh, outputWriter)
 	}
 
-	renderTicker := time.NewTicker(RenderInterval(cfg, isTTY))
+	if closeErr := closeOutput(); runErr == nil && closeErr != nil {
+		return closeErr
+	}
+
+	return runErr
+}
+
+func normalizeRunDependencies(deps runDependencies) runDependencies {
+	if deps.stdout == nil {
+		deps.stdout = io.Discard
+	}
+	if deps.stdoutIsTTY == nil {
+		deps.stdoutIsTTY = render.StdoutIsTTY
+	}
+	if deps.runStream == nil {
+		deps.runStream = transport.RunStream
+	}
+
+	return deps
+}
+
+func resolveOutputMode(cfg core.Config, stdoutIsTTY bool) string {
+	if cfg.OutputMode != core.OutputModeAuto {
+		return cfg.OutputMode
+	}
+	if stdoutIsTTY {
+		return core.OutputModeTUI
+	}
+
+	return core.OutputModeText
+}
+
+func openOutputWriter(cfg core.Config, outputMode string, stdout io.Writer) (io.Writer, func() error, error) {
+	if cfg.OutputPath != "" && outputMode != core.OutputModeJSONL {
+		return nil, nil, errOutRequiresJSONL
+	}
+	if cfg.OutputPath == "" {
+		return stdout, func() error { return nil }, nil
+	}
+
+	file, err := os.Create(cfg.OutputPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return file, file.Close, nil
+}
+
+func runText(
+	ctx context.Context,
+	cfg core.Config,
+	state core.AppState,
+	sampleCh <-chan core.Sample,
+	eventCh <-chan core.StreamEvent,
+	stdout io.Writer,
+) error {
+	renderTicker := time.NewTicker(RenderInterval(cfg, false))
 	defer renderTicker.Stop()
 
-	for {
+	for sampleCh != nil || eventCh != nil {
 		select {
 		case <-ctx.Done():
 			return nil
-		case ev := <-eventCh:
+		case ev, ok := <-eventCh:
+			if !ok {
+				eventCh = nil
+
+				continue
+			}
 			ApplyEvent(&state, ev)
 			appliedSample := DrainPending(&state, sampleCh, eventCh)
-			if !isTTY && appliedSample {
-				fmt.Println(render.NonInteractive(state))
+			if appliedSample {
+				if _, err := fmt.Fprintln(stdout, render.NonInteractive(state)); err != nil {
+					return err
+				}
 			}
-		case smp := <-sampleCh:
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
 			ApplySample(&state, smp)
 			_ = DrainPending(&state, sampleCh, eventCh)
-			if !isTTY {
-				fmt.Println(render.NonInteractive(state))
+			if _, err := fmt.Fprintln(stdout, render.NonInteractive(state)); err != nil {
+				return err
 			}
 		case <-renderTicker.C:
 			_ = DrainPending(&state, sampleCh, eventCh)
-			fmt.Println(render.NonInteractive(state))
+			if _, err := fmt.Fprintln(stdout, render.NonInteractive(state)); err != nil {
+				return err
+			}
 		}
+	}
+
+	return nil
+}
+
+func runJSONL(
+	ctx context.Context,
+	state core.AppState,
+	sampleCh <-chan core.Sample,
+	eventCh <-chan core.StreamEvent,
+	stdout io.Writer,
+) error {
+	writer := jsonl.NewWriter(stdout)
+	for sampleCh != nil || eventCh != nil {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev, ok := <-eventCh:
+			if !ok {
+				eventCh = nil
+
+				continue
+			}
+			ApplyEvent(&state, ev)
+			if err := drainJSONLPending(&state, sampleCh, eventCh, writer); err != nil {
+				return err
+			}
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
+			ApplySample(&state, smp)
+			if err := writer.WriteSample(smp); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func drainJSONLPending(
+	state *core.AppState,
+	sampleCh <-chan core.Sample,
+	eventCh <-chan core.StreamEvent,
+	writer *jsonl.Writer,
+) error {
+	for {
+		select {
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
+			ApplySample(state, smp)
+			if err := writer.WriteSample(smp); err != nil {
+				return err
+			}
+
+			continue
+		default:
+		}
+
+		select {
+		case ev, ok := <-eventCh:
+			if !ok {
+				eventCh = nil
+
+				continue
+			}
+			ApplyEvent(state, ev)
+
+			continue
+		default:
+		}
+
+		return nil
 	}
 }
 
@@ -187,9 +369,14 @@ func ApplySample(state *core.AppState, smp core.Sample) {
 // DrainPending applies all buffered samples and events without blocking.
 func DrainPending(state *core.AppState, sampleCh <-chan core.Sample, eventCh <-chan core.StreamEvent) bool {
 	appliedSample := false
-	for {
+	for sampleCh != nil || eventCh != nil {
 		select {
-		case smp := <-sampleCh:
+		case smp, ok := <-sampleCh:
+			if !ok {
+				sampleCh = nil
+
+				continue
+			}
 			ApplySample(state, smp)
 			appliedSample = true
 
@@ -198,7 +385,12 @@ func DrainPending(state *core.AppState, sampleCh <-chan core.Sample, eventCh <-c
 		}
 
 		select {
-		case ev := <-eventCh:
+		case ev, ok := <-eventCh:
+			if !ok {
+				eventCh = nil
+
+				continue
+			}
 			ApplyEvent(state, ev)
 
 			continue
@@ -207,4 +399,6 @@ func DrainPending(state *core.AppState, sampleCh <-chan core.Sample, eventCh <-c
 
 		return appliedSample
 	}
+
+	return appliedSample
 }

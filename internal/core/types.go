@@ -8,6 +8,11 @@ const (
 	ThemeBasic     = "basic"
 	ThemeWindowsXP = "windows-xp"
 
+	OutputModeAuto  = ""
+	OutputModeTUI   = "tui"
+	OutputModeText  = "text"
+	OutputModeJSONL = "jsonl"
+
 	StatusConnecting   = "connecting"
 	StatusDisconnected = "disconnected"
 	StatusLive         = "live"
@@ -29,6 +34,8 @@ type Config struct {
 	Compact            bool
 	NoBanner           bool
 	ShowVersion        bool
+	OutputMode         string
+	OutputPath         string
 	Theme              string
 	DisableTrueColor   bool
 	SSHConnectTimeout  time.Duration
