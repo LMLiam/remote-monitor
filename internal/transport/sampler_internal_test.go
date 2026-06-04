@@ -27,6 +27,7 @@ const (
 	testIntelUeventFile                 = "device/uevent"
 	testIntelVendorValue                = "0x8086\n"
 	testAMDVendorValue                  = "0x1002\n"
+	testAMDSysfsUUID                    = "amd-0000:0b:00.0"
 	testVRAMTotalFile                   = "device/mem_info_vram_total"
 	testVRAMUsedFile                    = "device/mem_info_vram_used"
 	samplerJSONModule                   = "json.sh"
@@ -684,7 +685,7 @@ func TestRemoteSamplerBuildsAMDGPUJSONFromSysfsWhenToolsAreMissing(t *testing.T)
 		t.Fatalf("expected one sysfs AMD GPU, got %#v", got)
 	}
 	gpu := got[0]
-	if gpu.Index != 0 || gpu.UUID != "amd-0000:0b:00.0" || gpu.Name != "AMD GPU 1002:744C" {
+	if gpu.Index != 0 || gpu.UUID != testAMDSysfsUUID || gpu.Name != "AMD GPU 1002:744C" {
 		t.Fatalf("unexpected sysfs AMD identity: %#v", gpu)
 	}
 	if gpu.MemUsed != 12288 || gpu.MemTotal != 24576 || gpu.MemUtil != 50 {
@@ -701,24 +702,10 @@ func TestRemoteSamplerBuildsAMDGPUJSONFromSysfsWhenToolsAreMissing(t *testing.T)
 func TestRemoteSamplerFallsBackToSysfsWhenAMDSMIJSONHasNoGPUData(t *testing.T) {
 	t.Parallel()
 
-	binDir := t.TempDir()
-	writeExecutable(t, filepath.Join(binDir, "amd-smi"), `#!/bin/sh
-printf '{}'
-`)
-
-	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
-		testPathEnv:          prependTestPath(binDir),
-		testIntelDRMClassEnv: writeAMDSysfsFallbackFixture(t),
-	}))
-	if len(got) != 1 {
-		t.Fatalf("expected sysfs AMD GPU fallback, got %#v", got)
-	}
-	if got[0].UUID != "amd-0000:0b:00.0" || got[0].MemUsed != 12288 || got[0].Temp != 62 {
-		t.Fatalf("unexpected sysfs AMD fallback after empty amd-smi JSON: %#v", got[0])
-	}
+	assertAMDSysfsFallbackAfterEmptyToolJSON(t, "amd-smi")
 }
 
-func TestRemoteSamplerBuildsAMDGPUJSONFromROCMMIWhenAMDSMIIsMissing(t *testing.T) {
+func TestRemoteSamplerBuildsAMDGPUJSONFromROCMSMIWhenAMDSMIIsMissing(t *testing.T) {
 	t.Parallel()
 
 	binDir := t.TempDir()
@@ -763,6 +750,32 @@ JSON
 	}
 	if gpu.SMClock != 2100 || gpu.MemClock != 1000 || gpu.GraphicsClock != 2100 || gpu.PState != "auto" {
 		t.Fatalf("unexpected rocm-smi AMD clocks/state: %#v", gpu)
+	}
+}
+
+func TestRemoteSamplerFallsBackToSysfsWhenROCMSMIJSONHasNoGPUData(t *testing.T) {
+	t.Parallel()
+
+	assertAMDSysfsFallbackAfterEmptyToolJSON(t, "rocm-smi")
+}
+
+func assertAMDSysfsFallbackAfterEmptyToolJSON(t *testing.T, toolName string) {
+	t.Helper()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, toolName), `#!/bin/sh
+printf '{}'
+`)
+
+	got := parseGPUJSONForTest(t, runSamplerModuleSnippet(t, amdGPUSamplerModules(), amdGPUJSONSnippet(), map[string]string{
+		testPathEnv:          prependTestPath(binDir),
+		testIntelDRMClassEnv: writeAMDSysfsFallbackFixture(t),
+	}))
+	if len(got) != 1 {
+		t.Fatalf("expected sysfs AMD GPU fallback, got %#v", got)
+	}
+	if got[0].UUID != testAMDSysfsUUID || got[0].MemUsed != 12288 || got[0].Temp != 62 {
+		t.Fatalf("unexpected sysfs AMD fallback after empty %s JSON: %#v", toolName, got[0])
 	}
 }
 

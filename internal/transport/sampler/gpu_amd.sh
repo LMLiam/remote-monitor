@@ -619,6 +619,16 @@ build_rocm_smi_gpu_json() {
   mem_clock="$(amd_current_clock_from_levels "${mem_clock_levels}")"
   pstate="$(amd_first_json_string "${rocm_json}" "Performance Level" "Perf Level")"
 
+  if [ -z "${name}" ] && [ -z "${uuid}" ] &&
+    [ "${util}" -lt 0 ] && [ "${mem_util}" -lt 0 ] &&
+    [ "${mem_used}" -lt 0 ] && [ "${mem_total}" -lt 0 ] &&
+    [ "${temp}" -lt 0 ] && [ "${power_draw}" = "-1" ] && [ "${power_limit}" = "-1" ] && [ "${fan}" -lt 0 ] &&
+    [ "${sm_clock}" -lt 0 ] && [ "${mem_clock}" -lt 0 ] &&
+    [ -z "${pstate}" ]; then
+    printf '[]'
+    return
+  fi
+
   if [ -z "${name}" ]; then
     name='AMD GPU'
   fi
