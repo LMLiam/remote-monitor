@@ -538,6 +538,22 @@ func TestRenderMediumTwoColumnLayoutStacksMemoryUnderShortGPU(t *testing.T) {
 	}
 }
 
+func TestRenderFrameUnavailableGPUMessageMentionsSupportedCollectors(t *testing.T) {
+	t.Parallel()
+
+	state := testTUIState()
+	state.Current.GPUs = nil
+	state.Current.GPUProcesses = nil
+
+	frame := ansi.StripANSI(render.Frame(state, 176, 92))
+	if !strings.Contains(frame, "supported GPU") {
+		t.Fatalf("expected unavailable GPU text to mention supported GPU collectors, got %q", frame)
+	}
+	if strings.Contains(frame, "nvidia-smi unavailable") {
+		t.Fatalf("unavailable GPU text should not imply NVIDIA-only support, got %q", frame)
+	}
+}
+
 func TestRenderFrameLineWidthsConsistent(t *testing.T) {
 	t.Parallel()
 

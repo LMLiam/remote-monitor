@@ -11,7 +11,7 @@ import (
 func buildGPURows(state core.AppState, valueWidth, activityWidth int, condensed bool) []TableRowSpec {
 	s := state.Current
 	if len(s.GPUs) == 0 {
-		return []TableRowSpec{TableFullRow(LabelGPU, ansi.Yellow, "unavailable", ansi.Yellow, "", "nvidia-smi unavailable or no GPUs exposed", ansi.Yellow, "")}
+		return []TableRowSpec{TableFullRow(LabelGPU, ansi.Yellow, "unavailable", ansi.Yellow, "", "supported GPU unavailable/no GPUs exposed", ansi.Yellow, "")}
 	}
 
 	rows := make([]TableRowSpec, 0, len(s.GPUs)*gpuRowsPerDevice)

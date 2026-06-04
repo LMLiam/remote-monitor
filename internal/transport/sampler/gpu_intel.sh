@@ -606,43 +606,6 @@ build_intel_gpu_top_or_sysfs_json() {
   printf ']'
 }
 
-json_array_body() {
-  local value
-  value="$(trim "${1:-}")"
-  value="${value#[}"
-  value="${value%]}"
-  trim "${value}"
-}
-
-combine_gpu_json_arrays() {
-  local first second first_body second_body
-  first_body="$(json_array_body "${1:-[]}")"
-  second_body="$(json_array_body "${2:-[]}")"
-
-  printf '['
-  if [ -n "${first_body}" ]; then
-    printf '%s' "${first_body}"
-  fi
-  if [ -n "${first_body}" ] && [ -n "${second_body}" ]; then
-    printf ','
-  fi
-  if [ -n "${second_body}" ]; then
-    printf '%s' "${second_body}"
-  fi
-  printf ']'
-}
-
-json_array_count() {
-  local body
-  body="$(json_array_body "${1:-[]}")"
-  if [ -z "${body}" ]; then
-    printf '%s' '0'
-    return
-  fi
-
-  printf '%s' "${body}" | awk '{ count += gsub(/"index"[[:space:]]*:/, "&") } END { print count + 0 }'
-}
-
 build_intel_gpu_json() {
   local xpu_discovery xpu_json intel_json xpu_count
   discover_intel_drm_devices
@@ -654,8 +617,4 @@ build_intel_gpu_json() {
 
   intel_json="$(build_intel_gpu_top_or_sysfs_json "${xpu_count}")"
   combine_gpu_json_arrays "${xpu_json}" "${intel_json}"
-}
-
-build_gpu_json() {
-  combine_gpu_json_arrays "$(build_nvidia_gpu_json)" "$(build_intel_gpu_json)"
 }
