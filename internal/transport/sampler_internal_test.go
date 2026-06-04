@@ -30,6 +30,7 @@ const (
 	testVRAMTotalFile                   = "device/mem_info_vram_total"
 	testVRAMUsedFile                    = "device/mem_info_vram_used"
 	samplerJSONModule                   = "json.sh"
+	samplerGPUCommonModule              = "gpu_common.sh"
 	samplerNVIDIAModule                 = "gpu_nvidia.sh"
 	samplerIntelModule                  = "gpu_intel.sh"
 	samplerAMDModule                    = "gpu_amd.sh"
@@ -817,7 +818,7 @@ func intelGPUJSONSnippet() string {
 }
 
 func intelGPUSamplerModules() []string {
-	return []string{samplerJSONModule, samplerNVIDIAModule, samplerIntelModule}
+	return []string{samplerJSONModule, samplerGPUCommonModule, samplerNVIDIAModule, samplerIntelModule, samplerAMDModule}
 }
 
 func amdGPUJSONSnippet() string {
@@ -836,7 +837,7 @@ func amdGPUJSONSnippet() string {
 }
 
 func amdGPUSamplerModules() []string {
-	return []string{samplerJSONModule, samplerNVIDIAModule, samplerIntelModule, samplerAMDModule}
+	return []string{samplerJSONModule, samplerGPUCommonModule, samplerAMDModule}
 }
 
 func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
@@ -1006,6 +1007,7 @@ func expectedSamplerModules() []string {
 		"filesystems.sh",
 		"disk.sh",
 		"network.sh",
+		samplerGPUCommonModule,
 		samplerNVIDIAModule,
 		samplerIntelModule,
 		samplerAMDModule,

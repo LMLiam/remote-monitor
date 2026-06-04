@@ -50,6 +50,7 @@ go test -tags=integration ./...
 - `filesystems.sh`: filesystem usage cache and JSON.
 - `disk.sh`: root disk counters and JSON.
 - `network.sh`: interface discovery, network counters, and TCP counters.
+- `gpu_common.sh`: shared GPU JSON array helpers and final vendor output combiner.
 - `gpu_nvidia.sh`: NVIDIA GPU metrics and GPU process metrics.
 - `gpu_intel.sh`: Intel GPU metrics from `xpu-smi`, `intel_gpu_top`, and `/sys/class/drm` fallbacks.
 - `gpu_amd.sh`: AMD GPU metrics from `amd-smi metric --json`, `rocm-smi --json`, and `/sys/class/drm` fallbacks.

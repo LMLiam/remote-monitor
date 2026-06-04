@@ -1157,6 +1157,52 @@ read_tcp_counter_sample() {
   ' /proc/net/snmp 2>/dev/null
 }
 
+json_array_body() {
+  local value
+  value="$(trim "${1:-}")"
+  value="${value#[}"
+  value="${value%]}"
+  trim "${value}"
+}
+
+combine_gpu_json_arrays() {
+  local first second first_body second_body
+  first_body="$(json_array_body "${1:-[]}")"
+  second_body="$(json_array_body "${2:-[]}")"
+
+  printf '['
+  if [ -n "${first_body}" ]; then
+    printf '%s' "${first_body}"
+  fi
+  if [ -n "${first_body}" ] && [ -n "${second_body}" ]; then
+    printf ','
+  fi
+  if [ -n "${second_body}" ]; then
+    printf '%s' "${second_body}"
+  fi
+  printf ']'
+}
+
+json_array_count() {
+  local body
+  body="$(json_array_body "${1:-[]}")"
+  if [ -z "${body}" ]; then
+    printf '%s' '0'
+    return
+  fi
+
+  printf '%s' "${body}" | awk '{ count += gsub(/"index"[[:space:]]*:/, "&") } END { print count + 0 }'
+}
+
+build_gpu_json() {
+  local nvidia_json amd_json intel_json
+  nvidia_json="$(build_nvidia_gpu_json)"
+  amd_json="$(build_amd_gpu_json)"
+  intel_json="$(build_intel_gpu_json)"
+
+  combine_gpu_json_arrays "$(combine_gpu_json_arrays "${nvidia_json}" "${amd_json}")" "${intel_json}"
+}
+
 boolish_active() {
   local value
   value="$(trim "${1:-}")"
@@ -2037,43 +2083,6 @@ build_intel_gpu_top_or_sysfs_json() {
   printf ']'
 }
 
-json_array_body() {
-  local value
-  value="$(trim "${1:-}")"
-  value="${value#[}"
-  value="${value%]}"
-  trim "${value}"
-}
-
-combine_gpu_json_arrays() {
-  local first second first_body second_body
-  first_body="$(json_array_body "${1:-[]}")"
-  second_body="$(json_array_body "${2:-[]}")"
-
-  printf '['
-  if [ -n "${first_body}" ]; then
-    printf '%s' "${first_body}"
-  fi
-  if [ -n "${first_body}" ] && [ -n "${second_body}" ]; then
-    printf ','
-  fi
-  if [ -n "${second_body}" ]; then
-    printf '%s' "${second_body}"
-  fi
-  printf ']'
-}
-
-json_array_count() {
-  local body
-  body="$(json_array_body "${1:-[]}")"
-  if [ -z "${body}" ]; then
-    printf '%s' '0'
-    return
-  fi
-
-  printf '%s' "${body}" | awk '{ count += gsub(/"index"[[:space:]]*:/, "&") } END { print count + 0 }'
-}
-
 build_intel_gpu_json() {
   local xpu_discovery xpu_json intel_json xpu_count
   discover_intel_drm_devices
@@ -2085,10 +2094,6 @@ build_intel_gpu_json() {
 
   intel_json="$(build_intel_gpu_top_or_sysfs_json "${xpu_count}")"
   combine_gpu_json_arrays "${xpu_json}" "${intel_json}"
-}
-
-build_gpu_json() {
-  combine_gpu_json_arrays "$(build_nvidia_gpu_json)" "$(build_intel_gpu_json)"
 }
 
 amd_sysfs_paths=()
@@ -2756,43 +2761,23 @@ build_amd_sysfs_gpu_json() {
   printf ']'
 }
 
-amd_json_array_count() {
-  local body
-  body="$(json_array_body "${1:-[]}")"
-  if [ -z "${body}" ]; then
-    printf '%s' '0'
-    return
-  fi
-
-  printf '%s' "${body}" | awk '{ count += gsub(/"index"[[:space:]]*:/, "&") } END { print count + 0 }'
-}
-
 build_amd_gpu_json() {
   local amd_smi_json rocm_smi_json
   discover_amd_drm_devices
 
   amd_smi_json="$(build_amd_smi_gpu_json)"
-  if [ "$(amd_json_array_count "${amd_smi_json}")" -gt 0 ]; then
+  if [ "$(json_array_count "${amd_smi_json}")" -gt 0 ]; then
     printf '%s' "${amd_smi_json}"
     return
   fi
 
   rocm_smi_json="$(build_rocm_smi_gpu_json)"
-  if [ "$(amd_json_array_count "${rocm_smi_json}")" -gt 0 ]; then
+  if [ "$(json_array_count "${rocm_smi_json}")" -gt 0 ]; then
     printf '%s' "${rocm_smi_json}"
     return
   fi
 
   build_amd_sysfs_gpu_json
-}
-
-build_gpu_json() {
-  local nvidia_json amd_json intel_json
-  nvidia_json="$(build_nvidia_gpu_json)"
-  amd_json="$(build_amd_gpu_json)"
-  intel_json="$(build_intel_gpu_json)"
-
-  combine_gpu_json_arrays "$(combine_gpu_json_arrays "${nvidia_json}" "${amd_json}")" "${intel_json}"
 }
 
 remote_name="$(hostname)"
