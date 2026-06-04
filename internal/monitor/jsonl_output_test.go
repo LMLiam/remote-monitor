@@ -196,6 +196,7 @@ func outputTestConfig(overrides ...func(*core.Config)) core.Config {
 		Compact:            false,
 		NoBanner:           false,
 		ShowVersion:        false,
+		Once:               false,
 		OutputMode:         core.OutputModeAuto,
 		OutputPath:         "",
 		Theme:              "",

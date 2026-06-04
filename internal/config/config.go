@@ -55,6 +55,7 @@ func ParseConfig(args []string) (core.Config, error) {
 	compact := fs.Bool("compact", cliValues.compact, "Use a compact stacked layout")
 	noBanner := fs.Bool("no-banner", cliValues.noBanner, "Disable the large rendered title banner")
 	showVersion := fs.Bool("version", false, "Print version information and exit")
+	once := fs.Bool("once", false, "Collect one sample and exit")
 	outputMode := fs.String("output", core.OutputModeAuto, "Output mode (tui, text, jsonl)")
 	outputPath := fs.String("out", "", "Write JSONL output to this file")
 	processSort := fs.String("process-sort", cliValues.processSort, "Process sort order (cpu, mem)")
@@ -142,6 +143,7 @@ func ParseConfig(args []string) (core.Config, error) {
 		Compact:            resolved.compact,
 		NoBanner:           resolved.noBanner,
 		ShowVersion:        false,
+		Once:               *once,
 		OutputMode:         resolvedOutputMode,
 		OutputPath:         *outputPath,
 		Theme:              resolved.theme,

@@ -177,6 +177,19 @@ func TestParseConfigAcceptsOutputModes(t *testing.T) {
 	}
 }
 
+func TestParseConfigStoresOnceMode(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{"--once", testExampleHost})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if !cfg.Once {
+		t.Fatal("once mode = false")
+	}
+}
+
 func TestParseConfigRejectsUnknownOutputMode(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
 

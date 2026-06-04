@@ -2,12 +2,16 @@ package parser
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"strings"
 	"time"
 )
 
 const wireProtocolVersion = 1
+
+var errUnsupportedSampleVersion = errors.New("unsupported sample version")
 
 type wireSwap struct {
 	FreeKiB  int64 `json:"free_kib"`
@@ -76,21 +80,28 @@ type wireSample struct {
 }
 
 // Parser converts sampler JSON lines into monitor samples.
-type Parser struct{}
+type Parser struct {
+	lastErr error
+}
 
 // HandleLine parses one sampler output line and reports whether it produced a sample.
-func (*Parser) HandleLine(line string) (*core.Sample, bool) {
+func (p *Parser) HandleLine(line string) (*core.Sample, bool) {
 	if strings.TrimSpace(line) == "" {
 		return nil, false
 	}
 
 	var wire wireSample
 	if err := json.Unmarshal([]byte(line), &wire); err != nil {
+		p.lastErr = fmt.Errorf("parse sample JSON: %w", err)
+
 		return nil, false
 	}
 	if wire.Version != wireProtocolVersion {
+		p.lastErr = fmt.Errorf("%w %d", errUnsupportedSampleVersion, wire.Version)
+
 		return nil, false
 	}
+	p.lastErr = nil
 
 	return &core.Sample{
 		RemoteEpoch:           wire.RemoteEpoch,
@@ -149,4 +160,9 @@ func (*Parser) HandleLine(line string) (*core.Sample, bool) {
 		GPUs:                  wire.GPUs,
 		ReceivedAt:            time.Time{},
 	}, true
+}
+
+// LastError returns the latest non-empty line rejection, if any.
+func (p *Parser) LastError() error {
+	return p.lastErr
 }
