@@ -593,6 +593,24 @@ func TestRenderNonInteractivePowerSummaryMatchesTextOutputBehavior(t *testing.T)
 	}
 }
 
+func TestRenderPowerDrawZeroUsesWattsInTextOutput(t *testing.T) {
+	t.Parallel()
+
+	state := testState(func(state *core.AppState) {
+		state.Current = testSample(func(smp *core.Sample) {
+			smp.ExternalPowerOnline = 1
+			smp.PowerDrawWatts = 0
+		})
+		state.HasSample = true
+		state.RuntimeState = core.StatusLive
+	})
+
+	got := render.NonInteractive(state)
+	if !strings.Contains(got, "Power AC online • 0.00W") {
+		t.Fatalf("text output should render zero-watt power draw, got %q", got)
+	}
+}
+
 func withPowerSample(smp *core.Sample) {
 	smp.ExternalPowerOnline = 1
 	smp.BatteryPercent = 83

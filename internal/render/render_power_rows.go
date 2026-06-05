@@ -34,7 +34,7 @@ func BuildPowerRows(state core.AppState, activityWidth int, condensed bool) []Ta
 		rows = append(rows, TableFullRow("Battery", SeverityColor(severity), batterySummaryValue(s), SeverityColor(severity), "", fallbackString(s.BatteryStatus, TextNA), SeverityColor(severity), batteryGaugeCell(s.BatteryPercent, activityWidth, severity)))
 	}
 	if s.PowerDrawWatts >= 0 {
-		rows = append(rows, TableFullRow("Power Draw", ansi.Amber, formatPowerValue(s.PowerDrawWatts), ansi.Amber, "", "estimated", ansi.Amber, ""))
+		rows = append(rows, TableFullRow("Power Draw", ansi.Amber, formatPowerSupplyDrawValue(s.PowerDrawWatts), ansi.Amber, "", "estimated", ansi.Amber, ""))
 	}
 	if s.UPSPresent == 1 {
 		rows = append(rows, TableFullRow("UPS", ansi.Green, "present", ansi.Green, "", fallbackString(upsSupplyName(s), "sysfs"), ansi.Green, ""))
@@ -77,7 +77,7 @@ func PowerSummaryText(s core.Sample) string {
 		parts = append(parts, strings.TrimSpace(batterySummaryValue(s)+" "+strings.TrimSpace(s.BatteryStatus)))
 	}
 	if s.PowerDrawWatts >= 0 {
-		parts = append(parts, formatPowerValue(s.PowerDrawWatts))
+		parts = append(parts, formatPowerSupplyDrawValue(s.PowerDrawWatts))
 	}
 	if s.UPSPresent == 1 {
 		parts = append(parts, "UPS present")
@@ -184,7 +184,7 @@ func powerSupplyValue(supply core.PowerSupplyStat) string {
 func powerSupplyActivity(supply core.PowerSupplyStat) string {
 	parts := make([]string, 0, powerSupplyActivityPartsCap)
 	if supply.PowerDrawWatts >= 0 {
-		parts = append(parts, formatPowerValue(supply.PowerDrawWatts))
+		parts = append(parts, formatPowerSupplyDrawValue(supply.PowerDrawWatts))
 	}
 	if supply.Present >= 0 {
 		present := "absent"
@@ -195,4 +195,12 @@ func powerSupplyActivity(supply core.PowerSupplyStat) string {
 	}
 
 	return strings.Join(parts, " ")
+}
+
+func formatPowerSupplyDrawValue(draw float64) string {
+	if draw < 0 {
+		return TextNA
+	}
+
+	return formatFloat(draw) + "W"
 }
