@@ -1160,7 +1160,7 @@ read_tcp_counter_sample() {
 read_power_supply_text() {
   local file="$1"
   local value=''
-  if [ -r "${file}" ]; then
+  if [ -f "${file}" ] && [ -r "${file}" ]; then
     IFS= read -r value < "${file}" || true
   fi
 

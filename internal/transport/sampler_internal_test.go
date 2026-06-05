@@ -155,8 +155,12 @@ func TestRemoteSamplerPowerJSONUsesSentinelsForMissingAndUnreadableFields(t *tes
 		},
 	})
 	capacityPath := filepath.Join(powerDir, testPowerSupplyBattery1, testPowerSupplyCapacityFile)
-	if err := os.Chmod(capacityPath, 0); err != nil {
-		t.Fatalf("make capacity unreadable: %v", err)
+	if err := os.Remove(capacityPath); err != nil {
+		t.Fatalf("remove capacity file: %v", err)
+	}
+	// A directory is a root-safe stand-in for an unreadable scalar sysfs field.
+	if err := os.Mkdir(capacityPath, 0o700); err != nil {
+		t.Fatalf("replace capacity with directory: %v", err)
 	}
 
 	got := parsePowerJSONForTest(t, runSamplerModuleSnippet(t, powerSamplerModules(), powerJSONSnippet(), map[string]string{
