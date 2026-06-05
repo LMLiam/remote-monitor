@@ -30,6 +30,28 @@ Those tests verify that the embedded script matches the manifest assembly, that
 the embedded script passes `bash -n`, and that collector modules can be sourced
 without running the long-lived sampler loop.
 
+Run the shell checks used by CI with:
+
+```bash
+go run mvdan.cc/sh/v3/cmd/shfmt@v3.13.1 -i 2 -ci -d .github/scripts internal/transport/sampler internal/transport/sampler.sh tests/e2e/ssh-target
+shellcheck -S warning -s bash .github/scripts/*.sh tests/e2e/ssh-target/*.sh internal/transport/sampler/assemble.sh internal/transport/sampler.sh
+sampler_modules=()
+while IFS= read -r module || [ -n "${module}" ]; do
+  case "${module}" in
+    '' | '#'*)
+      continue
+      ;;
+  esac
+  sampler_modules+=("internal/transport/sampler/${module}")
+done <internal/transport/sampler/manifest.txt
+shellcheck -S warning -s bash -e SC2034,SC2154 "${sampler_modules[@]}"
+```
+
+The sampler module ShellCheck command disables `SC2034` and `SC2154` only for
+module fragments. The modules are sourced into `sampler.sh`, so direct module
+analysis cannot see cross-module state that is assigned in one file and read in
+another. The assembled `sampler.sh` is checked without those disables.
+
 Run the CI-equivalent project suite before publishing sampler changes. The
 integration-tagged test run includes the SSH E2E package and requires Docker:
 

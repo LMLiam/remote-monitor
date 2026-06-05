@@ -28,7 +28,7 @@ normalize_int() {
   local value
   value="$(trim "${1:-}")"
   case "${value}" in
-    ''|N/A|n/a)
+    '' | N/A | n/a)
       printf '%s' '-1'
       return
       ;;
@@ -46,7 +46,7 @@ normalize_float() {
   local value
   value="$(trim "${1:-}")"
   case "${value}" in
-    ''|N/A|n/a)
+    '' | N/A | n/a)
       printf '%s' '-1'
       return
       ;;

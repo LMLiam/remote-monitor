@@ -1,5 +1,5 @@
 read_cpu_snapshot() {
-  local label user nice system idle iowait irq softirq steal guest guest_nice
+  local label user nice system idle iowait irq softirq steal _guest _guest_nice
   local idle_all
   local total
   local user_all
@@ -13,9 +13,9 @@ read_cpu_snapshot() {
   cpu_iowait=()
   cpu_steal=()
 
-  while read -r label user nice system idle iowait irq softirq steal guest guest_nice; do
+  while read -r label user nice system idle iowait irq softirq steal _guest _guest_nice; do
     case "${label}" in
-      cpu|cpu[0-9]*)
+      cpu | cpu[0-9]*)
         user_all=$((user + nice))
         system_all=$((system + irq + softirq))
         idle_all=$((idle + iowait))
@@ -29,7 +29,7 @@ read_cpu_snapshot() {
         cpu_steal+=("${steal}")
         ;;
     esac
-  done < /proc/stat
+  done </proc/stat
 }
 
 now_ns() {
@@ -90,9 +90,9 @@ read_cpu_freq_stats() {
 
   shopt -s nullglob
   for path in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq; do
-    value="$(tr -d '[:space:]' < "${path}" 2>/dev/null || printf '%s' '')"
+    value="$(tr -d '[:space:]' <"${path}" 2>/dev/null || printf '%s' '')"
     case "${value}" in
-      ''|*[!0-9]*)
+      '' | *[!0-9]*)
         continue
         ;;
     esac
@@ -101,9 +101,9 @@ read_cpu_freq_stats() {
 
     max_path="${path%/scaling_cur_freq}/cpuinfo_max_freq"
     if [ -r "${max_path}" ]; then
-      value="$(tr -d '[:space:]' < "${max_path}" 2>/dev/null || printf '%s' '')"
+      value="$(tr -d '[:space:]' <"${max_path}" 2>/dev/null || printf '%s' '')"
       case "${value}" in
-        ''|*[!0-9]*)
+        '' | *[!0-9]*)
           ;;
         *)
           max_sum=$((max_sum + value))
@@ -193,14 +193,14 @@ read_cpu_temp_c() {
   shopt -s nullglob
   for type_path in /sys/class/thermal/thermal_zone*/type; do
     [ -r "${type_path}" ] || continue
-    type_name="$(tr '[:upper:]' '[:lower:]' < "${type_path}" 2>/dev/null || printf '%s' '')"
+    type_name="$(tr '[:upper:]' '[:lower:]' <"${type_path}" 2>/dev/null || printf '%s' '')"
     case "${type_name}" in
-      *x86_pkg_temp*|*package*|*coretemp*|*cpu*|*k10temp*|*tctl*|*tdie*)
+      *x86_pkg_temp* | *package* | *coretemp* | *cpu* | *k10temp* | *tctl* | *tdie*)
         temp_path="${type_path%/type}/temp"
         if [ -r "${temp_path}" ]; then
-          raw="$(tr -d '[:space:]' < "${temp_path}" 2>/dev/null || printf '%s' '')"
+          raw="$(tr -d '[:space:]' <"${temp_path}" 2>/dev/null || printf '%s' '')"
           case "${raw}" in
-            ''|*[!0-9-]*)
+            '' | *[!0-9-]*)
               continue
               ;;
           esac
@@ -219,14 +219,14 @@ read_cpu_temp_c() {
   if [ "${best}" -lt 0 ] 2>/dev/null; then
     for hwmon_path in /sys/class/hwmon/hwmon*; do
       [ -r "${hwmon_path}/name" ] || continue
-      hwmon_name="$(tr '[:upper:]' '[:lower:]' < "${hwmon_path}/name" 2>/dev/null || printf '%s' '')"
+      hwmon_name="$(tr '[:upper:]' '[:lower:]' <"${hwmon_path}/name" 2>/dev/null || printf '%s' '')"
       case "${hwmon_name}" in
-        coretemp|k10temp|zenpower|cpu_thermal)
+        coretemp | k10temp | zenpower | cpu_thermal)
           for temp_path in "${hwmon_path}"/temp*_input; do
             [ -r "${temp_path}" ] || continue
-            raw="$(tr -d '[:space:]' < "${temp_path}" 2>/dev/null || printf '%s' '')"
+            raw="$(tr -d '[:space:]' <"${temp_path}" 2>/dev/null || printf '%s' '')"
             case "${raw}" in
-              ''|*[!0-9-]*)
+              '' | *[!0-9-]*)
                 continue
                 ;;
             esac

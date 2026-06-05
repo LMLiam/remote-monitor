@@ -76,10 +76,10 @@ build_disk_json() {
     fi
   fi
 
-  if [ "${disk_reads_completed}" -ge 0 ] && [ "${prev_disk_reads_completed}" -ge 0 ] && \
-     [ "${disk_writes_completed}" -ge 0 ] && [ "${prev_disk_writes_completed}" -ge 0 ] && \
-     [ "${disk_read_ms}" -ge 0 ] && [ "${prev_disk_read_ms}" -ge 0 ] && \
-     [ "${disk_write_ms}" -ge 0 ] && [ "${prev_disk_write_ms}" -ge 0 ]; then
+  if [ "${disk_reads_completed}" -ge 0 ] && [ "${prev_disk_reads_completed}" -ge 0 ] &&
+    [ "${disk_writes_completed}" -ge 0 ] && [ "${prev_disk_writes_completed}" -ge 0 ] &&
+    [ "${disk_read_ms}" -ge 0 ] && [ "${prev_disk_read_ms}" -ge 0 ] &&
+    [ "${disk_write_ms}" -ge 0 ] && [ "${prev_disk_write_ms}" -ge 0 ]; then
     disk_ops_delta=$(((disk_reads_completed - prev_disk_reads_completed) + (disk_writes_completed - prev_disk_writes_completed)))
     disk_service_ms_delta=$(((disk_read_ms - prev_disk_read_ms) + (disk_write_ms - prev_disk_write_ms)))
     if [ "${disk_ops_delta}" -gt 0 ]; then
@@ -123,6 +123,5 @@ build_disk_json() {
   prev_disk_writes_completed="${disk_writes_completed}"
   prev_disk_writes_merged="${disk_writes_merged}"
   prev_disk_write_ms="${disk_write_ms}"
-  prev_disk_in_flight="${disk_in_flight}"
   prev_disk_weighted_ms="${disk_weighted_ms}"
 }

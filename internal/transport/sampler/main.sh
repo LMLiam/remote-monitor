@@ -19,7 +19,7 @@ root_usage_cache=''
 filesystems_json_cache=''
 
 case "${remote_cpu_cores}" in
-  ''|*[!0-9]*)
+  '' | *[!0-9]*)
     remote_cpu_cores='0'
     ;;
 esac
@@ -55,7 +55,6 @@ prev_disk_read_ms='-1'
 prev_disk_writes_completed='-1'
 prev_disk_writes_merged='-1'
 prev_disk_write_ms='-1'
-prev_disk_in_flight='-1'
 prev_disk_weighted_ms='-1'
 prev_swap_in_pages='-1'
 prev_swap_out_pages='-1'
@@ -73,7 +72,7 @@ prev_cpu_steal=("${cpu_steal[@]}")
 discover_net_ifaces
 prime_net_baselines
 
-IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
+IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms _prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
 IFS='|' read -r prev_swap_in_pages prev_swap_out_pages < <(read_swap_io_sample)
 IFS='|' read -r prev_tcp_retrans prev_tcp_resets < <(read_tcp_counter_sample)
 prev_sample_ns="$(now_ns)"
@@ -127,7 +126,7 @@ while true; do
   IFS='|' read -r swap_free_kib swap_total_kib < <(read_swap_stats)
   IFS='|' read -r swap_in_pages swap_out_pages < <(read_swap_io_sample)
   IFS='|' read -r tcp_retrans_counter tcp_resets_counter < <(read_tcp_counter_sample)
-  read -r load1 load5 load15 _ < /proc/loadavg
+  read -r load1 load5 load15 _ </proc/loadavg
   uptime_s="$(awk '{printf "%d\n", $1}' /proc/uptime)"
   epoch_now="$(date +%s)"
   stamp_now="$(date '+%F %T')"

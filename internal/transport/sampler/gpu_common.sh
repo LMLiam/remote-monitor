@@ -7,7 +7,7 @@ json_array_body() {
 }
 
 combine_gpu_json_arrays() {
-  local first second first_body second_body
+  local first_body second_body
   first_body="$(json_array_body "${1:-[]}")"
   second_body="$(json_array_body "${2:-[]}")"
 

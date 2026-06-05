@@ -12,10 +12,10 @@ cleanup_tmp() {
 }
 trap cleanup_tmp EXIT
 
-: > "${tmp}"
+: >"${tmp}"
 while IFS= read -r module || [ -n "${module}" ]; do
   case "${module}" in
-    ''|'#'*)
+    '' | '#'*)
       continue
       ;;
   esac
@@ -29,14 +29,14 @@ while IFS= read -r module || [ -n "${module}" ]; do
   if [ "${first_module}" -eq 1 ]; then
     first_module=0
   else
-    printf '\n' >> "${tmp}"
+    printf '\n' >>"${tmp}"
   fi
 
-  cat "${module_path}" >> "${tmp}"
+  cat "${module_path}" >>"${tmp}"
   if [ -s "${tmp}" ] && [ "$(tail -c 1 "${tmp}")" != "" ]; then
-    printf '\n' >> "${tmp}"
+    printf '\n' >>"${tmp}"
   fi
-done < "${manifest}"
+done <"${manifest}"
 
 mv "${tmp}" "${output}"
 trap - EXIT

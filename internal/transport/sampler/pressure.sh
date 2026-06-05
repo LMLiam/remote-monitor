@@ -34,7 +34,7 @@ read_pressure_avg10() {
         }')"
         ;;
     esac
-  done < "${path}"
+  done <"${path}"
 
   printf '%s|%s\n' "$(normalize_float "${some}")" "$(normalize_float "${full}")"
 }

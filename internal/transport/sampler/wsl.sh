@@ -8,20 +8,20 @@ is_wsl_environment() {
   fi
 
   if [ -r "${osrelease_path}" ]; then
-    content="$(< "${osrelease_path}")"
+    content="$(<"${osrelease_path}")"
     content="${content,,}"
     case "${content}" in
-      *microsoft*|*wsl*)
+      *microsoft* | *wsl*)
         return 0
         ;;
     esac
   fi
 
   if [ -r "${version_path}" ]; then
-    content="$(< "${version_path}")"
+    content="$(<"${version_path}")"
     content="${content,,}"
     case "${content}" in
-      *microsoft*|*wsl*)
+      *microsoft* | *wsl*)
         return 0
         ;;
     esac
@@ -37,7 +37,7 @@ wsl_host_metrics_enabled() {
   value="${value// /}"
 
   case "${value}" in
-    0|false|no|off|disabled)
+    0 | false | no | off | disabled)
       return 1
       ;;
   esac
@@ -183,8 +183,8 @@ apply_wsl_host_metrics() {
   fi
 
   host_cpu_temp="$(json_int_field "${wsl_host_metrics_json}" 'cpu_temp_c')"
-  if [ "${cpu_temp_c}" -lt 0 ] 2>/dev/null && \
-     [ "${host_cpu_temp}" -ge 1 ] 2>/dev/null && [ "${host_cpu_temp}" -le 125 ] 2>/dev/null; then
+  if [ "${cpu_temp_c}" -lt 0 ] 2>/dev/null &&
+    [ "${host_cpu_temp}" -ge 1 ] 2>/dev/null && [ "${host_cpu_temp}" -le 125 ] 2>/dev/null; then
     cpu_temp_c="${host_cpu_temp}"
   fi
 
@@ -192,10 +192,10 @@ apply_wsl_host_metrics() {
   host_ram_total="$(json_int_field "${wsl_host_metrics_json}" 'ram_total_mib')"
   host_ram_available="$(json_int_field "${wsl_host_metrics_json}" 'ram_available_mib')"
   host_ram_free="$(json_int_field "${wsl_host_metrics_json}" 'ram_free_mib')"
-  if [ "${host_ram_total}" -gt 0 ] 2>/dev/null && \
-     [ "${host_ram_used}" -ge 0 ] 2>/dev/null && [ "${host_ram_used}" -le "${host_ram_total}" ] 2>/dev/null && \
-     [ "${host_ram_available}" -ge 0 ] 2>/dev/null && [ "${host_ram_available}" -le "${host_ram_total}" ] 2>/dev/null && \
-     [ "${host_ram_free}" -ge 0 ] 2>/dev/null && [ "${host_ram_free}" -le "${host_ram_total}" ] 2>/dev/null; then
+  if [ "${host_ram_total}" -gt 0 ] 2>/dev/null &&
+    [ "${host_ram_used}" -ge 0 ] 2>/dev/null && [ "${host_ram_used}" -le "${host_ram_total}" ] 2>/dev/null &&
+    [ "${host_ram_available}" -ge 0 ] 2>/dev/null && [ "${host_ram_available}" -le "${host_ram_total}" ] 2>/dev/null &&
+    [ "${host_ram_free}" -ge 0 ] 2>/dev/null && [ "${host_ram_free}" -le "${host_ram_total}" ] 2>/dev/null; then
     ram_used="${host_ram_used}"
     ram_total="${host_ram_total}"
     ram_available="${host_ram_available}"

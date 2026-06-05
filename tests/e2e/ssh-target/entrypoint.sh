@@ -7,7 +7,7 @@ if [ -z "${AUTHORIZED_KEY:-}" ]; then
 fi
 
 install -d -m 700 -o monitor -g monitor /home/monitor/.ssh
-printf '%s\n' "${AUTHORIZED_KEY}" > /home/monitor/.ssh/authorized_keys
+printf '%s\n' "${AUTHORIZED_KEY}" >/home/monitor/.ssh/authorized_keys
 chown monitor:monitor /home/monitor/.ssh/authorized_keys
 chmod 600 /home/monitor/.ssh/authorized_keys
 

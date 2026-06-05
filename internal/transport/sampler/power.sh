@@ -2,7 +2,7 @@ read_power_supply_text() {
   local file="$1"
   local value=''
   if [ -f "${file}" ] && [ -r "${file}" ]; then
-    IFS= read -r value < "${file}" || true
+    IFS= read -r value <"${file}" || true
   fi
 
   trim "${value}"
@@ -36,7 +36,7 @@ is_external_power_type() {
   local type_lc
   type_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   case "${type_lc}" in
-    mains|ac|usb|usb_*|usb-*|usb|usb_c|usb-c|usb_pd|usb-pd|wireless|ups)
+    mains | ac | usb | usb_* | usb-* | wireless | ups)
       return 0
       ;;
     *)

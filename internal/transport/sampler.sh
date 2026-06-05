@@ -2,7 +2,7 @@ set -euo pipefail
 
 interval="${1:-1}"
 case "${interval}" in
-  ''|*[!0-9]*|0)
+  '' | *[!0-9]* | 0)
     interval=1
     ;;
 esac
@@ -10,7 +10,7 @@ interval_ns=$((interval * 1000000000))
 filesystem_refresh_seconds=10
 process_sort="${2:-cpu}"
 case "${process_sort}" in
-  cpu|mem)
+  cpu | mem)
     ;;
   *)
     process_sort='cpu'
@@ -19,7 +19,7 @@ esac
 process_filter="${3:-}"
 process_count="${4:-4}"
 case "${process_count}" in
-  ''|*[!0-9]*|0)
+  '' | *[!0-9]* | 0)
     process_count=4
     ;;
 esac
@@ -66,7 +66,7 @@ normalize_int() {
   local value
   value="$(trim "${1:-}")"
   case "${value}" in
-    ''|N/A|n/a)
+    '' | N/A | n/a)
       printf '%s' '-1'
       return
       ;;
@@ -84,7 +84,7 @@ normalize_float() {
   local value
   value="$(trim "${1:-}")"
   case "${value}" in
-    ''|N/A|n/a)
+    '' | N/A | n/a)
       printf '%s' '-1'
       return
       ;;
@@ -99,7 +99,7 @@ normalize_float() {
 }
 
 read_cpu_snapshot() {
-  local label user nice system idle iowait irq softirq steal guest guest_nice
+  local label user nice system idle iowait irq softirq steal _guest _guest_nice
   local idle_all
   local total
   local user_all
@@ -113,9 +113,9 @@ read_cpu_snapshot() {
   cpu_iowait=()
   cpu_steal=()
 
-  while read -r label user nice system idle iowait irq softirq steal guest guest_nice; do
+  while read -r label user nice system idle iowait irq softirq steal _guest _guest_nice; do
     case "${label}" in
-      cpu|cpu[0-9]*)
+      cpu | cpu[0-9]*)
         user_all=$((user + nice))
         system_all=$((system + irq + softirq))
         idle_all=$((idle + iowait))
@@ -129,7 +129,7 @@ read_cpu_snapshot() {
         cpu_steal+=("${steal}")
         ;;
     esac
-  done < /proc/stat
+  done </proc/stat
 }
 
 now_ns() {
@@ -190,9 +190,9 @@ read_cpu_freq_stats() {
 
   shopt -s nullglob
   for path in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_cur_freq; do
-    value="$(tr -d '[:space:]' < "${path}" 2>/dev/null || printf '%s' '')"
+    value="$(tr -d '[:space:]' <"${path}" 2>/dev/null || printf '%s' '')"
     case "${value}" in
-      ''|*[!0-9]*)
+      '' | *[!0-9]*)
         continue
         ;;
     esac
@@ -201,9 +201,9 @@ read_cpu_freq_stats() {
 
     max_path="${path%/scaling_cur_freq}/cpuinfo_max_freq"
     if [ -r "${max_path}" ]; then
-      value="$(tr -d '[:space:]' < "${max_path}" 2>/dev/null || printf '%s' '')"
+      value="$(tr -d '[:space:]' <"${max_path}" 2>/dev/null || printf '%s' '')"
       case "${value}" in
-        ''|*[!0-9]*)
+        '' | *[!0-9]*)
           ;;
         *)
           max_sum=$((max_sum + value))
@@ -293,14 +293,14 @@ read_cpu_temp_c() {
   shopt -s nullglob
   for type_path in /sys/class/thermal/thermal_zone*/type; do
     [ -r "${type_path}" ] || continue
-    type_name="$(tr '[:upper:]' '[:lower:]' < "${type_path}" 2>/dev/null || printf '%s' '')"
+    type_name="$(tr '[:upper:]' '[:lower:]' <"${type_path}" 2>/dev/null || printf '%s' '')"
     case "${type_name}" in
-      *x86_pkg_temp*|*package*|*coretemp*|*cpu*|*k10temp*|*tctl*|*tdie*)
+      *x86_pkg_temp* | *package* | *coretemp* | *cpu* | *k10temp* | *tctl* | *tdie*)
         temp_path="${type_path%/type}/temp"
         if [ -r "${temp_path}" ]; then
-          raw="$(tr -d '[:space:]' < "${temp_path}" 2>/dev/null || printf '%s' '')"
+          raw="$(tr -d '[:space:]' <"${temp_path}" 2>/dev/null || printf '%s' '')"
           case "${raw}" in
-            ''|*[!0-9-]*)
+            '' | *[!0-9-]*)
               continue
               ;;
           esac
@@ -319,14 +319,14 @@ read_cpu_temp_c() {
   if [ "${best}" -lt 0 ] 2>/dev/null; then
     for hwmon_path in /sys/class/hwmon/hwmon*; do
       [ -r "${hwmon_path}/name" ] || continue
-      hwmon_name="$(tr '[:upper:]' '[:lower:]' < "${hwmon_path}/name" 2>/dev/null || printf '%s' '')"
+      hwmon_name="$(tr '[:upper:]' '[:lower:]' <"${hwmon_path}/name" 2>/dev/null || printf '%s' '')"
       case "${hwmon_name}" in
-        coretemp|k10temp|zenpower|cpu_thermal)
+        coretemp | k10temp | zenpower | cpu_thermal)
           for temp_path in "${hwmon_path}"/temp*_input; do
             [ -r "${temp_path}" ] || continue
-            raw="$(tr -d '[:space:]' < "${temp_path}" 2>/dev/null || printf '%s' '')"
+            raw="$(tr -d '[:space:]' <"${temp_path}" 2>/dev/null || printf '%s' '')"
             case "${raw}" in
-              ''|*[!0-9-]*)
+              '' | *[!0-9-]*)
                 continue
                 ;;
             esac
@@ -507,7 +507,7 @@ read_pressure_avg10() {
         }')"
         ;;
     esac
-  done < "${path}"
+  done <"${path}"
 
   printf '%s|%s\n' "$(normalize_float "${some}")" "$(normalize_float "${full}")"
 }
@@ -522,20 +522,20 @@ is_wsl_environment() {
   fi
 
   if [ -r "${osrelease_path}" ]; then
-    content="$(< "${osrelease_path}")"
+    content="$(<"${osrelease_path}")"
     content="${content,,}"
     case "${content}" in
-      *microsoft*|*wsl*)
+      *microsoft* | *wsl*)
         return 0
         ;;
     esac
   fi
 
   if [ -r "${version_path}" ]; then
-    content="$(< "${version_path}")"
+    content="$(<"${version_path}")"
     content="${content,,}"
     case "${content}" in
-      *microsoft*|*wsl*)
+      *microsoft* | *wsl*)
         return 0
         ;;
     esac
@@ -551,7 +551,7 @@ wsl_host_metrics_enabled() {
   value="${value// /}"
 
   case "${value}" in
-    0|false|no|off|disabled)
+    0 | false | no | off | disabled)
       return 1
       ;;
   esac
@@ -697,8 +697,8 @@ apply_wsl_host_metrics() {
   fi
 
   host_cpu_temp="$(json_int_field "${wsl_host_metrics_json}" 'cpu_temp_c')"
-  if [ "${cpu_temp_c}" -lt 0 ] 2>/dev/null && \
-     [ "${host_cpu_temp}" -ge 1 ] 2>/dev/null && [ "${host_cpu_temp}" -le 125 ] 2>/dev/null; then
+  if [ "${cpu_temp_c}" -lt 0 ] 2>/dev/null &&
+    [ "${host_cpu_temp}" -ge 1 ] 2>/dev/null && [ "${host_cpu_temp}" -le 125 ] 2>/dev/null; then
     cpu_temp_c="${host_cpu_temp}"
   fi
 
@@ -706,10 +706,10 @@ apply_wsl_host_metrics() {
   host_ram_total="$(json_int_field "${wsl_host_metrics_json}" 'ram_total_mib')"
   host_ram_available="$(json_int_field "${wsl_host_metrics_json}" 'ram_available_mib')"
   host_ram_free="$(json_int_field "${wsl_host_metrics_json}" 'ram_free_mib')"
-  if [ "${host_ram_total}" -gt 0 ] 2>/dev/null && \
-     [ "${host_ram_used}" -ge 0 ] 2>/dev/null && [ "${host_ram_used}" -le "${host_ram_total}" ] 2>/dev/null && \
-     [ "${host_ram_available}" -ge 0 ] 2>/dev/null && [ "${host_ram_available}" -le "${host_ram_total}" ] 2>/dev/null && \
-     [ "${host_ram_free}" -ge 0 ] 2>/dev/null && [ "${host_ram_free}" -le "${host_ram_total}" ] 2>/dev/null; then
+  if [ "${host_ram_total}" -gt 0 ] 2>/dev/null &&
+    [ "${host_ram_used}" -ge 0 ] 2>/dev/null && [ "${host_ram_used}" -le "${host_ram_total}" ] 2>/dev/null &&
+    [ "${host_ram_available}" -ge 0 ] 2>/dev/null && [ "${host_ram_available}" -le "${host_ram_total}" ] 2>/dev/null &&
+    [ "${host_ram_free}" -ge 0 ] 2>/dev/null && [ "${host_ram_free}" -le "${host_ram_total}" ] 2>/dev/null; then
     ram_used="${host_ram_used}"
     ram_total="${host_ram_total}"
     ram_available="${host_ram_available}"
@@ -865,10 +865,10 @@ build_disk_json() {
     fi
   fi
 
-  if [ "${disk_reads_completed}" -ge 0 ] && [ "${prev_disk_reads_completed}" -ge 0 ] && \
-     [ "${disk_writes_completed}" -ge 0 ] && [ "${prev_disk_writes_completed}" -ge 0 ] && \
-     [ "${disk_read_ms}" -ge 0 ] && [ "${prev_disk_read_ms}" -ge 0 ] && \
-     [ "${disk_write_ms}" -ge 0 ] && [ "${prev_disk_write_ms}" -ge 0 ]; then
+  if [ "${disk_reads_completed}" -ge 0 ] && [ "${prev_disk_reads_completed}" -ge 0 ] &&
+    [ "${disk_writes_completed}" -ge 0 ] && [ "${prev_disk_writes_completed}" -ge 0 ] &&
+    [ "${disk_read_ms}" -ge 0 ] && [ "${prev_disk_read_ms}" -ge 0 ] &&
+    [ "${disk_write_ms}" -ge 0 ] && [ "${prev_disk_write_ms}" -ge 0 ]; then
     disk_ops_delta=$(((disk_reads_completed - prev_disk_reads_completed) + (disk_writes_completed - prev_disk_writes_completed)))
     disk_service_ms_delta=$(((disk_read_ms - prev_disk_read_ms) + (disk_write_ms - prev_disk_write_ms)))
     if [ "${disk_ops_delta}" -gt 0 ]; then
@@ -912,7 +912,6 @@ build_disk_json() {
   prev_disk_writes_completed="${disk_writes_completed}"
   prev_disk_writes_merged="${disk_writes_merged}"
   prev_disk_write_ms="${disk_write_ms}"
-  prev_disk_in_flight="${disk_in_flight}"
   prev_disk_weighted_ms="${disk_weighted_ms}"
 }
 
@@ -1003,7 +1002,7 @@ network_refresh_sample_count() {
   local samples="${network_refresh_samples:-${filesystem_refresh_samples:-1}}"
 
   case "${samples}" in
-    ''|*[!0-9]*|0)
+    '' | *[!0-9]* | 0)
       samples=1
       ;;
   esac
@@ -1047,9 +1046,9 @@ read_net_speed_mbps() {
   local speed='-1'
 
   if [ -r "${speed_path}" ]; then
-    speed="$(tr -d '[:space:]' < "${speed_path}" 2>/dev/null || printf '%s' '-1')"
+    speed="$(tr -d '[:space:]' <"${speed_path}" 2>/dev/null || printf '%s' '-1')"
     case "${speed}" in
-      ''|*[!0-9-]*)
+      '' | *[!0-9-]*)
         speed='-1'
         ;;
     esac
@@ -1094,8 +1093,8 @@ build_net_json() {
   for iface in "${tracked_net_ifaces[@]}"; do
     current_sample="$(read_net_sample "${iface}")"
     previous_sample="${prev_net_sample[${iface}]:-${unknown_net_sample}}"
-    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns <<< "${current_sample}"
-    IFS='|' read -r prev_rx prev_tx prev_rx_packets prev_tx_packets prev_rx_drops prev_rx_errors prev_rx_overruns prev_tx_drops prev_tx_errors prev_tx_overruns <<< "${previous_sample}"
+    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns <<<"${current_sample}"
+    IFS='|' read -r prev_rx prev_tx prev_rx_packets prev_tx_packets prev_rx_drops prev_rx_errors prev_rx_overruns prev_tx_drops prev_tx_errors prev_tx_overruns <<<"${previous_sample}"
     speed_mbps="$(read_net_speed_mbps "${iface}")"
 
     if [ "${current_rx}" -ge 0 ] && [ "${prev_rx}" -ge 0 ]; then
@@ -1242,7 +1241,7 @@ read_power_supply_text() {
   local file="$1"
   local value=''
   if [ -f "${file}" ] && [ -r "${file}" ]; then
-    IFS= read -r value < "${file}" || true
+    IFS= read -r value <"${file}" || true
   fi
 
   trim "${value}"
@@ -1276,7 +1275,7 @@ is_external_power_type() {
   local type_lc
   type_lc="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"
   case "${type_lc}" in
-    mains|ac|usb|usb_*|usb-*|usb|usb_c|usb-c|usb_pd|usb-pd|wireless|ups)
+    mains | ac | usb | usb_* | usb-* | wireless | ups)
       return 0
       ;;
     *)
@@ -1406,7 +1405,7 @@ json_array_body() {
 }
 
 combine_gpu_json_arrays() {
-  local first second first_body second_body
+  local first_body second_body
   first_body="$(json_array_body "${1:-[]}")"
   second_body="$(json_array_body "${2:-[]}")"
 
@@ -1449,7 +1448,7 @@ boolish_active() {
   value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
   value="${value// /}"
   case "${value}" in
-    ''|n/a|-1|0|false|no|disabled|inactive|notactive)
+    '' | n/a | -1 | 0 | false | no | disabled | inactive | notactive)
       return 1
       ;;
   esac
@@ -1458,7 +1457,6 @@ boolish_active() {
 
 summarize_gpu_throttle_reasons() {
   local reasons=''
-  local add_reason
 
   add_reason() {
     if [ -z "${reasons}" ]; then
@@ -1524,7 +1522,7 @@ build_gpu_process_json() {
     if [ "${count}" -ge 4 ]; then
       break
     fi
-  done <<< "${proc_output}"
+  done <<<"${proc_output}"
   printf ']'
 }
 
@@ -1534,7 +1532,7 @@ build_nvidia_gpu_json() {
   local gpu_output=''
   local gpu_extra_output=''
   local gpu_throttle_output=''
-  local attempt
+  local _attempt
   local comma=''
   local -a encoder_utils decoder_utils graphics_clocks video_clocks pcie_gen_current pcie_gen_max pcie_width_current pcie_width_max throttle_reasons
   local encoder_util decoder_util graphics_clock video_clock pcie_gen_cur pcie_gen_cap pcie_width_cur pcie_width_cap throttle_reason
@@ -1604,12 +1602,12 @@ build_nvidia_gpu_json() {
         "$(json_escape "${throttle_reason}")" \
         "$(json_escape "${pstate}")"
       comma=','
-    done <<< "${gpu_combined_output}"
+    done <<<"${gpu_combined_output}"
     printf ']'
     return
   fi
 
-  for attempt in 1 2; do
+  for _attempt in 1 2; do
     if gpu_output="$("${nvidia_smi_path}" \
       --query-gpu=index,uuid,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed,clocks.sm,clocks.max.sm,clocks.mem,clocks.max.mem,pstate \
       --format=csv,noheader,nounits 2>/dev/null)" && [ -n "${gpu_output}" ]; then
@@ -1640,7 +1638,7 @@ build_nvidia_gpu_json() {
       pcie_gen_max[idx]="$(normalize_int "${pcie_gen_cap}")"
       pcie_width_current[idx]="$(normalize_int "${pcie_width_cur}")"
       pcie_width_max[idx]="$(normalize_int "${pcie_width_cap}")"
-    done <<< "${gpu_extra_output}"
+    done <<<"${gpu_extra_output}"
   fi
 
   if gpu_throttle_output="$("${nvidia_smi_path}" \
@@ -1652,7 +1650,7 @@ build_nvidia_gpu_json() {
         continue
       fi
       throttle_reasons[idx]="$(summarize_gpu_throttle_reasons "${sw_power_cap}" "${hw_thermal}" "${sw_thermal}" "${hw_slow}" "${sync_boost}" "${app_clocks}" "${display_clocks}" "${idle_reason}" "${active_reason}")"
-    done <<< "${gpu_throttle_output}"
+    done <<<"${gpu_throttle_output}"
   fi
 
   printf '['
@@ -1711,7 +1709,7 @@ build_nvidia_gpu_json() {
       "$(json_escape "${throttle_reason}")" \
       "$(json_escape "${pstate}")"
     comma=','
-  done <<< "${gpu_output}"
+  done <<<"${gpu_output}"
   printf ']'
 }
 
@@ -1794,7 +1792,7 @@ read_first_existing_file() {
   local path line
   for path in "$@"; do
     if [ -r "${path}" ]; then
-      IFS= read -r line < "${path}" || line=''
+      IFS= read -r line <"${path}" || line=''
       trim "${line}"
       return
     fi
@@ -1817,7 +1815,7 @@ read_sysfs_uevent_field() {
       trim "${value}"
       return
     fi
-  done < "${path}"
+  done <"${path}"
 
   printf ''
 }
@@ -2084,12 +2082,12 @@ record_xpu_smi_bdfs_from_discovery() {
 
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in
-      ''|Device\ ID,*)
+      '' | Device\ ID,*)
         continue
         ;;
     esac
 
-    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<< "${line}"
+    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<<"${line}"
     device_id="$(normalize_int "$(csv_clean_field "${device_id}")")"
     if [ "${device_id}" -lt 0 ]; then
       continue
@@ -2098,13 +2096,13 @@ record_xpu_smi_bdfs_from_discovery() {
     if [ -n "${bdf}" ]; then
       xpu_smi_bdfs+=("${bdf}")
     fi
-  done <<< "${discovery}"
+  done <<<"${discovery}"
 }
 
 build_xpu_smi_gpu_json() {
   local discovery line comma='' index
   local device_id name uuid bdf mem_total_text mem_total
-  local stats stats_line timestamp stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock
+  local stats stats_line _timestamp _stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock
   local sysfs_idx sysfs_temp sysfs_power_limit
 
   discovery="${1:-}"
@@ -2120,12 +2118,12 @@ build_xpu_smi_gpu_json() {
   printf '['
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in
-      ''|Device\ ID,*)
+      '' | Device\ ID,*)
         continue
         ;;
     esac
 
-    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<< "${line}"
+    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<<"${line}"
     device_id="$(normalize_int "$(csv_clean_field "${device_id}")")"
     if [ "${device_id}" -lt 0 ]; then
       continue
@@ -2155,7 +2153,7 @@ build_xpu_smi_gpu_json() {
     stats="$(read_xpu_smi_stats_dump "${device_id}")"
     stats_line="$(printf '%s\n' "${stats}" | awk 'NF && $1 !~ /^Timestamp/ { line=$0 } END { print line }')"
     if [ -n "${stats_line}" ]; then
-      IFS=',' read -r timestamp stat_device_id util power_draw sm_clock temp mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<< "${stats_line}"
+      IFS=',' read -r _timestamp _stat_device_id util power_draw sm_clock temp mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<<"${stats_line}"
       util="$(round_float_to_int "${util}")"
       power_draw="$(normalize_float "${power_draw}")"
       sm_clock="$(normalize_int "${sm_clock}")"
@@ -2212,7 +2210,7 @@ build_xpu_smi_gpu_json() {
       "$(json_escape "${throttle}")"
     comma=','
     index=$((index + 1))
-  done <<< "${discovery}"
+  done <<<"${discovery}"
   printf ']'
 }
 
@@ -2412,7 +2410,7 @@ amd_read_first_existing_file() {
   local path line
   for path in "$@"; do
     if [ -r "${path}" ]; then
-      IFS= read -r line < "${path}" || line=''
+      IFS= read -r line <"${path}" || line=''
       trim "${line}"
       return
     fi
@@ -2435,7 +2433,7 @@ amd_read_sysfs_uevent_field() {
       trim "${value}"
       return
     fi
-  done < "${path}"
+  done <"${path}"
 
   printf ''
 }
@@ -2609,7 +2607,7 @@ amd_json_array_objects_for_key() {
         }
       }
     }
-  ' <<< "${json}"
+  ' <<<"${json}"
 }
 
 discover_amd_drm_devices() {
@@ -2750,7 +2748,7 @@ amd_sysfs_pstate() {
   idx="$1"
   state="$(amd_read_first_existing_file "${amd_sysfs_paths[idx]}/device/power_dpm_force_performance_level")"
   case "${state}" in
-    auto|low|high|manual|profile_*|performance|balanced|powersave)
+    auto | low | high | manual | profile_* | performance | balanced | powersave)
       printf '%s' "${state}"
       ;;
     *)
@@ -2923,7 +2921,7 @@ build_amd_smi_gpu_json() {
     emit_amd_gpu_json_object "${comma}" "${idx}" "${uuid}" "${name}" "${util}" "${mem_util}" '-1' "${decoder_util}" "${mem_used}" "${mem_total}" "${temp}" "${power_draw}" "${power_limit}" "${fan}" "${sm_clock}" "${sm_clock_max}" "${mem_clock}" "${mem_clock_max}" "${sm_clock}" '-1' "${pcie_gen_cur}" "${pcie_gen_cap}" "${pcie_width_cur}" "${pcie_width_cap}" "${throttle_reason}" "${pstate}"
     comma=','
     emitted=$((emitted + 1))
-  done <<< "${gpu_objects}"
+  done <<<"${gpu_objects}"
   printf ']'
 }
 
@@ -3051,7 +3049,7 @@ root_usage_cache=''
 filesystems_json_cache=''
 
 case "${remote_cpu_cores}" in
-  ''|*[!0-9]*)
+  '' | *[!0-9]*)
     remote_cpu_cores='0'
     ;;
 esac
@@ -3087,7 +3085,6 @@ prev_disk_read_ms='-1'
 prev_disk_writes_completed='-1'
 prev_disk_writes_merged='-1'
 prev_disk_write_ms='-1'
-prev_disk_in_flight='-1'
 prev_disk_weighted_ms='-1'
 prev_swap_in_pages='-1'
 prev_swap_out_pages='-1'
@@ -3105,7 +3102,7 @@ prev_cpu_steal=("${cpu_steal[@]}")
 discover_net_ifaces
 prime_net_baselines
 
-IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
+IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms _prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
 IFS='|' read -r prev_swap_in_pages prev_swap_out_pages < <(read_swap_io_sample)
 IFS='|' read -r prev_tcp_retrans prev_tcp_resets < <(read_tcp_counter_sample)
 prev_sample_ns="$(now_ns)"
@@ -3159,7 +3156,7 @@ while true; do
   IFS='|' read -r swap_free_kib swap_total_kib < <(read_swap_stats)
   IFS='|' read -r swap_in_pages swap_out_pages < <(read_swap_io_sample)
   IFS='|' read -r tcp_retrans_counter tcp_resets_counter < <(read_tcp_counter_sample)
-  read -r load1 load5 load15 _ < /proc/loadavg
+  read -r load1 load5 load15 _ </proc/loadavg
   uptime_s="$(awk '{printf "%d\n", $1}' /proc/uptime)"
   epoch_now="$(date +%s)"
   stamp_now="$(date '+%F %T')"

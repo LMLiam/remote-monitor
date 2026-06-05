@@ -50,10 +50,10 @@ fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 
-printf '%s\n\nbody text\n' 'feat(git): enforce commit subjects' > "$tmpdir/good-message"
+printf '%s\n\nbody text\n' 'feat(git): enforce commit subjects' >"$tmpdir/good-message"
 bash "$commit_msg_hook" "$tmpdir/good-message" >/dev/null
 
-printf '%s\n\nbody text\n' 'feat: missing area' > "$tmpdir/bad-message"
+printf '%s\n\nbody text\n' 'feat: missing area' >"$tmpdir/bad-message"
 if bash "$commit_msg_hook" "$tmpdir/bad-message" >/dev/null 2>&1; then
   printf 'expected commit-msg hook to reject invalid subject\n' >&2
   exit 1

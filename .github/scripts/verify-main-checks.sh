@@ -64,7 +64,7 @@ print_workflow_status() {
 
 timeout_seconds="${CHECK_WAIT_TIMEOUT_SECONDS:-600}"
 interval_seconds="${CHECK_WAIT_INTERVAL_SECONDS:-15}"
-deadline=$(( $(date +%s) + timeout_seconds ))
+deadline=$(($(date +%s) + timeout_seconds))
 runs_json=""
 
 while true; do

@@ -74,7 +74,7 @@ amd_read_first_existing_file() {
   local path line
   for path in "$@"; do
     if [ -r "${path}" ]; then
-      IFS= read -r line < "${path}" || line=''
+      IFS= read -r line <"${path}" || line=''
       trim "${line}"
       return
     fi
@@ -97,7 +97,7 @@ amd_read_sysfs_uevent_field() {
       trim "${value}"
       return
     fi
-  done < "${path}"
+  done <"${path}"
 
   printf ''
 }
@@ -271,7 +271,7 @@ amd_json_array_objects_for_key() {
         }
       }
     }
-  ' <<< "${json}"
+  ' <<<"${json}"
 }
 
 discover_amd_drm_devices() {
@@ -412,7 +412,7 @@ amd_sysfs_pstate() {
   idx="$1"
   state="$(amd_read_first_existing_file "${amd_sysfs_paths[idx]}/device/power_dpm_force_performance_level")"
   case "${state}" in
-    auto|low|high|manual|profile_*|performance|balanced|powersave)
+    auto | low | high | manual | profile_* | performance | balanced | powersave)
       printf '%s' "${state}"
       ;;
     *)
@@ -585,7 +585,7 @@ build_amd_smi_gpu_json() {
     emit_amd_gpu_json_object "${comma}" "${idx}" "${uuid}" "${name}" "${util}" "${mem_util}" '-1' "${decoder_util}" "${mem_used}" "${mem_total}" "${temp}" "${power_draw}" "${power_limit}" "${fan}" "${sm_clock}" "${sm_clock_max}" "${mem_clock}" "${mem_clock_max}" "${sm_clock}" '-1' "${pcie_gen_cur}" "${pcie_gen_cap}" "${pcie_width_cur}" "${pcie_width_cap}" "${throttle_reason}" "${pstate}"
     comma=','
     emitted=$((emitted + 1))
-  done <<< "${gpu_objects}"
+  done <<<"${gpu_objects}"
   printf ']'
 }
 
