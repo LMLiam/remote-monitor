@@ -27,7 +27,7 @@ func NonInteractive(state core.AppState) string {
 	status := currentStatus(state)
 	s := state.Current
 
-	return fmt.Sprintf(
+	line := fmt.Sprintf(
 		"%s | state %s | CPU %s | RAM %s | GPU %s | VRAM %s | TEMP %s",
 		fallbackString(s.RemoteTimestamp, time.Now().Format("2006-01-02 15:04:05")),
 		status,
@@ -37,6 +37,11 @@ func NonInteractive(state core.AppState) string {
 		percentDisplay(metrics.OverallVRAMPct(s)),
 		tempDisplay(metrics.OverallTempValue(s)),
 	)
+	if powerText := PowerSummaryText(s); powerText != "" {
+		line += " | Power " + powerText
+	}
+
+	return line
 }
 
 // TTYFrame returns a viewport frame wrapped in terminal repaint escapes.

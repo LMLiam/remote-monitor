@@ -131,6 +131,17 @@ type GPUStat struct {
 	PState           string  `json:"p_state"`
 }
 
+// PowerSupplyStat contains one sampled Linux power-supply sysfs device.
+type PowerSupplyStat struct {
+	Name            string  `json:"name"`
+	Type            string  `json:"type"`
+	Online          int     `json:"online"`
+	CapacityPercent int     `json:"capacity_percent"`
+	Status          string  `json:"status"`
+	PowerDrawWatts  float64 `json:"power_draw_w"`
+	Present         int     `json:"present"`
+}
+
 // Sample contains one complete sampler payload after JSON parsing.
 type Sample struct {
 	RemoteEpoch           int64
@@ -185,6 +196,13 @@ type Sample struct {
 	TopProcesses          []ProcessStat
 	GPUProcesses          []GPUProcessStat
 	GPUs                  []GPUStat
+	PowerSupplies         []PowerSupplyStat
+	ExternalPowerOnline   int
+	BatteryPercent        int
+	BatteryStatus         string
+	PowerDrawWatts        float64
+	UPSPresent            int
+	PowerSourceName       string
 	ReceivedAt            time.Time
 }
 
@@ -289,6 +307,13 @@ func EmptySample() Sample {
 		TopProcesses:          nil,
 		GPUProcesses:          nil,
 		GPUs:                  nil,
+		PowerSupplies:         nil,
+		ExternalPowerOnline:   -1,
+		BatteryPercent:        -1,
+		BatteryStatus:         "",
+		PowerDrawWatts:        -1,
+		UPSPresent:            -1,
+		PowerSourceName:       "",
 		ReceivedAt:            time.Time{},
 	}
 }

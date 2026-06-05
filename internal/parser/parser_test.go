@@ -306,3 +306,85 @@ func assertParsedAMDGPUState(t *testing.T, gpu core.GPUStat) {
 		t.Fatalf("unexpected AMD GPU state/media fields: %#v", gpu)
 	}
 }
+
+func TestParserBuildsPowerMetricsFromSamplerJSON(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"remote":"power-host","power":{"external_power_online":1,"battery_percent":83,"battery_status":"Discharging","power_draw_w":12.34,"ups_present":1,"source_name":"BAT0","supplies":[{"name":"AC0","type":"Mains","online":1,"capacity_percent":-1,"status":"","power_draw_w":-1,"present":-1},{"name":"BAT0","type":"Battery","online":-1,"capacity_percent":83,"status":"Discharging","power_draw_w":12.34,"present":1},{"name":"BAT1","type":"Battery","online":-1,"capacity_percent":91,"status":"Charging","power_draw_w":-1,"present":1},{"name":"UPS0","type":"UPS","online":0,"capacity_percent":55,"status":"Full","power_draw_w":-1,"present":1}]}}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected completed power sample from Parser")
+	}
+	assertParsedPowerSummary(t, got)
+	assertParsedPowerSupplies(t, got)
+}
+
+func assertParsedPowerSummary(t *testing.T, got *core.Sample) {
+	t.Helper()
+
+	if got.ExternalPowerOnline != 1 || got.BatteryPercent != 83 || got.BatteryStatus != "Discharging" {
+		t.Fatalf("unexpected power online/battery summary: %#v", got)
+	}
+	if got.PowerDrawWatts != 12.34 || got.UPSPresent != 1 || got.PowerSourceName != "BAT0" {
+		t.Fatalf("unexpected power draw/source summary: %#v", got)
+	}
+}
+
+func assertParsedPowerSupplies(t *testing.T, got *core.Sample) {
+	t.Helper()
+
+	if len(got.PowerSupplies) != 4 {
+		t.Fatalf("power supplies = %#v", got.PowerSupplies)
+	}
+	assertParsedPowerBattery(t, got.PowerSupplies[1])
+	assertParsedPowerChargingBattery(t, got.PowerSupplies[2])
+	assertParsedPowerUPS(t, got.PowerSupplies[3])
+}
+
+func assertParsedPowerBattery(t *testing.T, battery core.PowerSupplyStat) {
+	t.Helper()
+
+	if battery.Name != "BAT0" || battery.Type != "Battery" || battery.CapacityPercent != 83 || battery.Status != "Discharging" || battery.PowerDrawWatts != 12.34 || battery.Present != 1 {
+		t.Fatalf("unexpected battery supply: %#v", battery)
+	}
+}
+
+func assertParsedPowerChargingBattery(t *testing.T, chargingBattery core.PowerSupplyStat) {
+	t.Helper()
+
+	if chargingBattery.Name != "BAT1" || chargingBattery.Status != "Charging" || chargingBattery.CapacityPercent != 91 {
+		t.Fatalf("unexpected charging battery supply: %#v", chargingBattery)
+	}
+}
+
+func assertParsedPowerUPS(t *testing.T, ups core.PowerSupplyStat) {
+	t.Helper()
+
+	if ups.Name != "UPS0" || ups.Type != "UPS" || ups.CapacityPercent != 55 || ups.Status != "Full" || ups.Present != 1 {
+		t.Fatalf("unexpected UPS supply: %#v", ups)
+	}
+}
+
+func TestParserPreservesPowerSentinelsForUnavailableFields(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"remote":"partial-power-host","power":{"external_power_online":-1,"battery_percent":-1,"battery_status":"","power_draw_w":-1,"ups_present":0,"source_name":"","supplies":[{"name":"BAT1","type":"Battery","online":-1,"capacity_percent":-1,"status":"","power_draw_w":-1,"present":-1}]}}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected completed partial power sample from Parser")
+	}
+	if got.ExternalPowerOnline != -1 || got.BatteryPercent != -1 || got.BatteryStatus != "" || got.PowerDrawWatts != -1 || got.UPSPresent != 0 || got.PowerSourceName != "" {
+		t.Fatalf("unexpected unavailable power summary: %#v", got)
+	}
+	if len(got.PowerSupplies) != 1 {
+		t.Fatalf("power supplies = %#v", got.PowerSupplies)
+	}
+	supply := got.PowerSupplies[0]
+	if supply.Name != "BAT1" || supply.Online != -1 || supply.CapacityPercent != -1 || supply.Status != "" || supply.PowerDrawWatts != -1 || supply.Present != -1 {
+		t.Fatalf("unexpected unavailable supply sentinels: %#v", supply)
+	}
+}
