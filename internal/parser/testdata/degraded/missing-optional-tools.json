@@ -1,0 +1,97 @@
+{
+  "version": 1,
+  "epoch": 1780699000,
+  "timestamp": "2026-06-05 15:16:40",
+  "remote": "degraded-missing-tools",
+  "uptime_seconds": 3600,
+  "load1": 0.42,
+  "load5": 0.40,
+  "load15": 0.39,
+  "cpu_cores": 4,
+  "cpu_name": "Degraded Fixture CPU",
+  "cpu_percent": 17,
+  "cpu_user_percent": 9,
+  "cpu_system_percent": 5,
+  "cpu_iowait_percent": 1,
+  "cpu_steal_percent": 0,
+  "ram_used_mib": 1024,
+  "ram_total_mib": 4096,
+  "ram_available_mib": 3072,
+  "ram_free_mib": 2048,
+  "ram_cache_mib": 768,
+  "ram_buffers_mib": 64,
+  "ram_reclaimable_mib": 128,
+  "ram_shared_mib": 32,
+  "cpu_freq_mhz": 2200,
+  "cpu_max_freq_mhz": -1,
+  "cpu_temp_c": -1,
+  "cpu_pressure_some_avg10": -1,
+  "cpu_pressure_full_avg10": -1,
+  "mem_pressure_some_avg10": -1,
+  "mem_pressure_full_avg10": -1,
+  "swap": {
+    "free_kib": 0,
+    "total_kib": 0,
+    "in_bps": -1,
+    "out_bps": -1
+  },
+  "disk": {
+    "root_source": "/dev/sda1",
+    "root_used_kib": 12000000,
+    "root_total_kib": 48000000,
+    "root_used_percent": 25,
+    "device": "sda1",
+    "read_bps": -1,
+    "write_bps": -1,
+    "read_merged_per_sec": -1,
+    "write_merged_per_sec": -1,
+    "util_percent": -1,
+    "await_ms": -1,
+    "queue_depth": -1,
+    "inflight": -1
+  },
+  "net": [
+    {
+      "iface": "eth0",
+      "rx_bps": 0,
+      "tx_bps": 0,
+      "rx_pps": 0,
+      "tx_pps": 0,
+      "speed_mbps": -1,
+      "rx_drops": 0,
+      "rx_errors": 0,
+      "rx_overruns": 0,
+      "tx_drops": 0,
+      "tx_errors": 0,
+      "tx_overruns": 0
+    }
+  ],
+  "filesystems": [
+    {
+      "source": "/dev/sda1",
+      "mount": "/",
+      "used_kib": 12000000,
+      "total_kib": 48000000,
+      "used_percent": 25,
+      "inodes_used_percent": -1
+    }
+  ],
+  "tcp_retrans_segs_per_sec": -1,
+  "tcp_resets_per_sec": -1,
+  "cpu_core_usage": [
+    {
+      "index": 0,
+      "percent": 16
+    }
+  ],
+  "top_processes": [
+    {
+      "pid": 1200,
+      "command": "sshd",
+      "cpu_percent": 1,
+      "rss_mib": 32
+    }
+  ],
+  "gpu_processes": [],
+  "gpus": []
+}

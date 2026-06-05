@@ -260,6 +260,32 @@ PS
 	}
 }
 
+func TestRemoteSamplerOmitsMalformedProcessRowsFromJSON(t *testing.T) {
+	t.Parallel()
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "ps"), `#!/bin/sh
+cat <<'PS'
+bad-row
+301 nope 2048
+302 11.4 4096 python worker.py
+PS
+`)
+
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule, samplerProcessesModule}, strings.Join([]string{
+		`process_sort="cpu"`,
+		`process_filter=""`,
+		`process_count=4`,
+		`build_top_process_json`,
+	}, "\n"), map[string]string{
+		testPathEnv: prependTestPath(binDir),
+	})
+	const want = `[{"pid":302,"command":"python","cpu_percent":11,"rss_mib":4}]`
+	if got != want {
+		t.Fatalf("process JSON mismatch\nwant %q\n got %q", want, got)
+	}
+}
+
 func TestRemoteSamplerDetectsWSLFromProcAndEnvironment(t *testing.T) {
 	t.Parallel()
 

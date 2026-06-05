@@ -4,6 +4,8 @@ import (
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/parser"
 
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -387,4 +389,101 @@ func TestParserPreservesPowerSentinelsForUnavailableFields(t *testing.T) {
 	if supply.Name != "BAT1" || supply.Online != -1 || supply.CapacityPercent != -1 || supply.Status != "" || supply.PowerDrawWatts != -1 || supply.Present != -1 {
 		t.Fatalf("unexpected unavailable supply sentinels: %#v", supply)
 	}
+}
+
+func TestParserBuildsSamplesFromDegradedHostFixtures(t *testing.T) {
+	t.Parallel()
+
+	fixtures := []struct {
+		name   string
+		assert func(t *testing.T, got *core.Sample)
+	}{
+		{
+			name: "missing-optional-tools.json",
+			assert: func(t *testing.T, got *core.Sample) {
+				t.Helper()
+
+				if got.RemoteName != "degraded-missing-tools" {
+					t.Fatalf("remote name = %q", got.RemoteName)
+				}
+				if len(got.GPUs) != 0 || len(got.GPUProcesses) != 0 {
+					t.Fatalf("expected absent GPU tools to leave GPU slices empty, got gpus=%#v gpuProcesses=%#v", got.GPUs, got.GPUProcesses)
+				}
+				if got.CPUTempC != -1 || got.CPUPressureSomeAvg10 != -1 || got.MemPressureFullAvg10 != -1 {
+					t.Fatalf("expected unavailable optional metrics to use sentinels, got temp=%d cpuPressure=%f memPressure=%f", got.CPUTempC, got.CPUPressureSomeAvg10, got.MemPressureFullAvg10)
+				}
+				if got.ExternalPowerOnline != -1 || got.PowerDrawWatts != -1 || got.UPSPresent != -1 {
+					t.Fatalf("expected missing power object to keep parser sentinels, got %#v", got)
+				}
+			},
+		},
+		{
+			name: "restricted-proc-sys.json",
+			assert: func(t *testing.T, got *core.Sample) {
+				t.Helper()
+
+				if got.RemoteName != "degraded-restricted-data" {
+					t.Fatalf("remote name = %q", got.RemoteName)
+				}
+				if got.RAMAvailableMiB != -1 || got.RAMCacheMiB != -1 || got.SwapTotalKiB != -1 {
+					t.Fatalf("expected restricted memory/proc fields to use sentinels, got ramAvailable=%d ramCache=%d swapTotal=%d", got.RAMAvailableMiB, got.RAMCacheMiB, got.SwapTotalKiB)
+				}
+				if got.RootSource != "" || got.RootUsedKiB != -1 || got.DiskReadBps != -1 {
+					t.Fatalf("expected restricted storage fields to use empty/sentinel values, got root=%q used=%d readBps=%d", got.RootSource, got.RootUsedKiB, got.DiskReadBps)
+				}
+				if got.ExternalPowerOnline != -1 || got.BatteryPercent != -1 || got.PowerDrawWatts != -1 {
+					t.Fatalf("expected restricted power sysfs sentinels, got %#v", got)
+				}
+			},
+		},
+		{
+			name: "partial-sections-wsl.json",
+			assert: func(t *testing.T, got *core.Sample) {
+				t.Helper()
+
+				if got.RemoteName != "degraded-partial-wsl" {
+					t.Fatalf("remote name = %q", got.RemoteName)
+				}
+				if len(got.Net) != 1 || got.Net[0].Iface != testIfaceEth0 || got.Net[0].SpeedMbps != -1 || got.Net[0].RXPps != -1 {
+					t.Fatalf("expected partial network data with sentinels, got %#v", got.Net)
+				}
+				if len(got.Filesystems) != 1 || got.Filesystems[0].Mount != "/" || got.Filesystems[0].InodesUsedPercent != -1 {
+					t.Fatalf("expected one partial filesystem row, got %#v", got.Filesystems)
+				}
+				if len(got.TopProcesses) != 0 {
+					t.Fatalf("expected malformed process row to be omitted, got %#v", got.TopProcesses)
+				}
+				if got.CPUName != "WSL guest CPU" || got.CPUFreqMHz != -1 || got.CPUMaxFreqMHz != -1 {
+					t.Fatalf("expected unavailable WSL host metrics to preserve Linux fallback sentinels, got name=%q freq=%d max=%d", got.CPUName, got.CPUFreqMHz, got.CPUMaxFreqMHz)
+				}
+			},
+		},
+	}
+
+	for _, fixture := range fixtures {
+		fixture := fixture
+		t.Run(strings.TrimSuffix(fixture.name, ".json"), func(t *testing.T) {
+			t.Parallel()
+
+			line := readDegradedFixture(t, fixture.name)
+			var p parser.Parser
+			got, ok := p.HandleLine(line)
+			if !ok || got == nil {
+				t.Fatalf("expected degraded fixture %s to parse into core.Sample; parser error = %v", fixture.name, p.LastError())
+			}
+			fixture.assert(t, got)
+		})
+	}
+}
+
+func readDegradedFixture(t *testing.T, name string) string {
+	t.Helper()
+
+	path := filepath.Join("testdata", "degraded", name)
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read degraded fixture %s: %v", path, err)
+	}
+
+	return strings.TrimSpace(string(contents))
 }
