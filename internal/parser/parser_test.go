@@ -224,6 +224,27 @@ func TestParserReportsLastRejectedSampleLine(t *testing.T) {
 	}
 }
 
+func TestParserBuildsSampleWithEscapedControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"cpu_name":"AMD\u001b Ryzen\u0001","top_processes":[{"pid":4242,"command":"worker\u001f job","cpu_percent":12,"rss_mib":64}]}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected sample with escaped control characters to parse")
+	}
+	if got.CPUName != "AMD\x1b Ryzen\x01" {
+		t.Fatalf("cpu name = %q", got.CPUName)
+	}
+	if len(got.TopProcesses) != 1 || got.TopProcesses[0].Command != "worker\x1f job" {
+		t.Fatalf("top processes = %#v", got.TopProcesses)
+	}
+	if err := p.LastError(); err != nil {
+		t.Fatalf("parser error after escaped control characters = %v", err)
+	}
+}
+
 func TestParserBuildsIntelGPUFromSamplerJSON(t *testing.T) {
 	t.Parallel()
 
