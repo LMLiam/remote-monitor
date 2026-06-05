@@ -36,6 +36,16 @@ type wireDisk struct {
 	Inflight          int     `json:"inflight"`
 }
 
+type wirePower struct {
+	ExternalPowerOnline int                    `json:"external_power_online"`
+	BatteryPercent      int                    `json:"battery_percent"`
+	BatteryStatus       string                 `json:"battery_status"`
+	PowerDrawWatts      float64                `json:"power_draw_w"`
+	UPSPresent          int                    `json:"ups_present"`
+	PowerSourceName     string                 `json:"source_name"`
+	Supplies            []core.PowerSupplyStat `json:"supplies"`
+}
+
 type wireSample struct {
 	Version              int                   `json:"version"`
 	RemoteEpoch          int64                 `json:"epoch"`
@@ -77,6 +87,7 @@ type wireSample struct {
 	TopProcesses         []core.ProcessStat    `json:"top_processes"`
 	GPUProcesses         []core.GPUProcessStat `json:"gpu_processes"`
 	GPUs                 []core.GPUStat        `json:"gpus"`
+	Power                *wirePower            `json:"power"`
 }
 
 // Parser converts sampler JSON lines into monitor samples.
@@ -103,7 +114,7 @@ func (p *Parser) HandleLine(line string) (*core.Sample, bool) {
 	}
 	p.lastErr = nil
 
-	return &core.Sample{
+	sample := core.Sample{
 		RemoteEpoch:           wire.RemoteEpoch,
 		RemoteTimestamp:       wire.RemoteTime,
 		RemoteName:            wire.RemoteName,
@@ -158,8 +169,26 @@ func (p *Parser) HandleLine(line string) (*core.Sample, bool) {
 		TopProcesses:          wire.TopProcesses,
 		GPUProcesses:          wire.GPUProcesses,
 		GPUs:                  wire.GPUs,
+		PowerSupplies:         nil,
+		ExternalPowerOnline:   -1,
+		BatteryPercent:        -1,
+		BatteryStatus:         "",
+		PowerDrawWatts:        -1,
+		UPSPresent:            -1,
+		PowerSourceName:       "",
 		ReceivedAt:            time.Time{},
-	}, true
+	}
+	if wire.Power != nil {
+		sample.PowerSupplies = wire.Power.Supplies
+		sample.ExternalPowerOnline = wire.Power.ExternalPowerOnline
+		sample.BatteryPercent = wire.Power.BatteryPercent
+		sample.BatteryStatus = wire.Power.BatteryStatus
+		sample.PowerDrawWatts = wire.Power.PowerDrawWatts
+		sample.UPSPresent = wire.Power.UPSPresent
+		sample.PowerSourceName = wire.Power.PowerSourceName
+	}
+
+	return &sample, true
 }
 
 // LastError returns the latest non-empty line rejection, if any.

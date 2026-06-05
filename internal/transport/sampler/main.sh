@@ -11,6 +11,7 @@ amd_smi_path="$(command -v amd-smi 2>/dev/null || true)"
 rocm_smi_path="$(command -v rocm-smi 2>/dev/null || true)"
 intel_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 amd_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
+power_supply_class_path="${REMOTE_MONITOR_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 filesystem_refresh_samples="$(refresh_samples_for_seconds "${filesystem_refresh_seconds}")"
 sample_index=0
 root_usage_cache=''
@@ -177,8 +178,9 @@ while true; do
   top_process_json="$(build_top_process_json)"
   gpu_process_json="$(build_gpu_process_json)"
   gpu_json="$(build_gpu_json)"
+  power_json="$(build_power_json)"
 
-  printf '{"version":1,"epoch":%s,"timestamp":"%s","remote":"%s","uptime_seconds":%s,"load1":%s,"load5":%s,"load15":%s,"cpu_cores":%s,"cpu_name":"%s","cpu_percent":%s,"cpu_user_percent":%s,"cpu_system_percent":%s,"cpu_iowait_percent":%s,"cpu_steal_percent":%s,"ram_used_mib":%s,"ram_total_mib":%s,"ram_available_mib":%s,"ram_free_mib":%s,"ram_cache_mib":%s,"ram_buffers_mib":%s,"ram_reclaimable_mib":%s,"ram_shared_mib":%s,"cpu_freq_mhz":%s,"cpu_max_freq_mhz":%s,"cpu_temp_c":%s,"cpu_pressure_some_avg10":%s,"cpu_pressure_full_avg10":%s,"mem_pressure_some_avg10":%s,"mem_pressure_full_avg10":%s,"swap":{"free_kib":%s,"total_kib":%s,"in_bps":%s,"out_bps":%s},"disk":%s,"net":%s,"filesystems":%s,"tcp_retrans_segs_per_sec":%s,"tcp_resets_per_sec":%s,"cpu_core_usage":%s,"top_processes":%s,"gpu_processes":%s,"gpus":%s}\n' \
+  printf '{"version":1,"epoch":%s,"timestamp":"%s","remote":"%s","uptime_seconds":%s,"load1":%s,"load5":%s,"load15":%s,"cpu_cores":%s,"cpu_name":"%s","cpu_percent":%s,"cpu_user_percent":%s,"cpu_system_percent":%s,"cpu_iowait_percent":%s,"cpu_steal_percent":%s,"ram_used_mib":%s,"ram_total_mib":%s,"ram_available_mib":%s,"ram_free_mib":%s,"ram_cache_mib":%s,"ram_buffers_mib":%s,"ram_reclaimable_mib":%s,"ram_shared_mib":%s,"cpu_freq_mhz":%s,"cpu_max_freq_mhz":%s,"cpu_temp_c":%s,"cpu_pressure_some_avg10":%s,"cpu_pressure_full_avg10":%s,"mem_pressure_some_avg10":%s,"mem_pressure_full_avg10":%s,"swap":{"free_kib":%s,"total_kib":%s,"in_bps":%s,"out_bps":%s},"disk":%s,"net":%s,"filesystems":%s,"tcp_retrans_segs_per_sec":%s,"tcp_resets_per_sec":%s,"cpu_core_usage":%s,"top_processes":%s,"gpu_processes":%s,"gpus":%s,"power":%s}\n' \
     "${epoch_now}" \
     "$(json_escape "${stamp_now}")" \
     "$(json_escape "${remote_name}")" \
@@ -220,7 +222,8 @@ while true; do
     "${cpu_core_json}" \
     "${top_process_json}" \
     "${gpu_process_json}" \
-    "${gpu_json}"
+    "${gpu_json}" \
+    "${power_json}"
 
   prev_cpu_labels=("${cpu_labels[@]}")
   prev_cpu_idle=("${cpu_idle[@]}")

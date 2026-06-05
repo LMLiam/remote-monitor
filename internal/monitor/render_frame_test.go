@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const testBatteryStatusDischarging = "Discharging"
+
 func testWideFrameState() core.AppState {
 	state := testState(func(state *core.AppState) {
 		state.Cfg = testConfig(func(cfg *core.Config) {
@@ -551,6 +553,75 @@ func TestRenderFrameUnavailableGPUMessageMentionsSupportedCollectors(t *testing.
 	}
 	if strings.Contains(frame, "nvidia-smi unavailable") {
 		t.Fatalf("unavailable GPU text should not imply NVIDIA-only support, got %q", frame)
+	}
+}
+
+func TestRenderFrameAddsPowerSectionOnlyWhenPowerDataExists(t *testing.T) {
+	t.Parallel()
+
+	state := testWideFrameState()
+	withPowerSample(&state.Current)
+
+	cleaned := ansi.StripANSI(render.Frame(state, 176, 120))
+	assertTextContainsAll(t, "power frame", cleaned, []string{"│ Power", "External", "online", "Battery", "BAT0 83%", testBatteryStatusDischarging, "UPS", "present"})
+
+	state.Current = testWideFrameSample()
+	cleaned = ansi.StripANSI(render.Frame(state, 176, 120))
+	if strings.Contains(cleaned, "│ Power") {
+		t.Fatalf("frame should omit power section when no power data exists, got %q", cleaned)
+	}
+}
+
+func TestRenderNonInteractivePowerSummaryMatchesTextOutputBehavior(t *testing.T) {
+	t.Parallel()
+
+	state := testState(func(state *core.AppState) {
+		state.Current = testSample(withPowerSample)
+		state.HasSample = true
+		state.RuntimeState = core.StatusLive
+	})
+
+	got := render.NonInteractive(state)
+	if !strings.Contains(got, "Power AC online") || !strings.Contains(got, "BAT0 83% Discharging") || !strings.Contains(got, "12.34W") || !strings.Contains(got, "UPS present") {
+		t.Fatalf("text output missing power summary: %q", got)
+	}
+
+	state.Current = testSample()
+	got = render.NonInteractive(state)
+	if strings.Contains(got, "Power") {
+		t.Fatalf("text output should omit power summary when no power data exists: %q", got)
+	}
+}
+
+func TestRenderPowerDrawZeroUsesWattsInTextOutput(t *testing.T) {
+	t.Parallel()
+
+	state := testState(func(state *core.AppState) {
+		state.Current = testSample(func(smp *core.Sample) {
+			smp.ExternalPowerOnline = 1
+			smp.PowerDrawWatts = 0
+		})
+		state.HasSample = true
+		state.RuntimeState = core.StatusLive
+	})
+
+	got := render.NonInteractive(state)
+	if !strings.Contains(got, "Power AC online • 0.00W") {
+		t.Fatalf("text output should render zero-watt power draw, got %q", got)
+	}
+}
+
+func withPowerSample(smp *core.Sample) {
+	smp.ExternalPowerOnline = 1
+	smp.BatteryPercent = 83
+	smp.BatteryStatus = testBatteryStatusDischarging
+	smp.PowerDrawWatts = 12.34
+	smp.UPSPresent = 1
+	smp.PowerSourceName = "BAT0"
+	smp.PowerSupplies = []core.PowerSupplyStat{
+		{Name: "AC0", Type: "Mains", Online: 1, CapacityPercent: -1, Status: "", PowerDrawWatts: -1, Present: -1},
+		{Name: "BAT0", Type: "Battery", Online: -1, CapacityPercent: 83, Status: testBatteryStatusDischarging, PowerDrawWatts: 12.34, Present: 1},
+		{Name: "UPS0", Type: "UPS", Online: 0, CapacityPercent: 55, Status: "Full", PowerDrawWatts: -1, Present: 1},
 	}
 }
 

@@ -69,6 +69,9 @@ func BuildLayoutSections(state core.AppState, showProcessPanels bool) []LayoutSe
 	if len(BuildNetworkRows(state, layoutProbeActivityWidth, false)) > 0 {
 		sections = append(sections, LayoutSection{ID: "network", Render: func(boxWidth int, condensed bool) string { return renderNetworkSection(state, boxWidth, condensed) }})
 	}
+	if len(BuildPowerRows(state, layoutProbeActivityWidth, false)) > 0 {
+		sections = append(sections, LayoutSection{ID: "power", Render: func(boxWidth int, condensed bool) string { return renderPowerSection(state, boxWidth, condensed) }})
+	}
 	if showProcessPanels {
 		sections = append(sections,
 			LayoutSection{ID: "top-processes", Render: func(boxWidth int, _ bool) string { return renderTopProcessesSection(state, boxWidth) }},
@@ -412,6 +415,20 @@ func renderNetworkSection(state core.AppState, boxWidth int, condensed bool) str
 	}
 
 	return strings.Join(TableBox("Network", rows, labelWidth, valueWidth, activityWidth), "\n")
+}
+
+func renderPowerSection(state core.AppState, boxWidth int, condensed bool) string {
+	labelWidth, valueWidth, activityWidth := ComputeTableWidthsForRows(boxWidth, func(valueWidth, activityWidth int) []TableRowSpec {
+		_ = valueWidth
+
+		return BuildPowerRows(state, activityWidth, condensed)
+	})
+	rows := BuildPowerRows(state, activityWidth, condensed)
+	if len(rows) == 0 {
+		return ""
+	}
+
+	return strings.Join(TableBox("Power", rows, labelWidth, valueWidth, activityWidth), "\n")
 }
 
 func renderTopProcessesSection(state core.AppState, boxWidth int) string {

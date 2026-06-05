@@ -14,30 +14,37 @@ import (
 )
 
 const (
-	samplerScriptMode       fs.FileMode = 0o600
-	samplerModulesDir                   = "sampler"
-	samplerManifestPath                 = "sampler/manifest.txt"
-	testPathEnv                         = "PATH"
-	testWSLDistroEnv                    = "WSL_DISTRO_NAME"
-	testWSLDistroName                   = "Ubuntu"
-	samplerProcessesModule              = "processes.sh"
-	testIntelDRMClassEnv                = "REMOTE_MONITOR_DRM_CLASS_DIR"
-	testIntelVendorFile                 = "device/vendor"
-	testIntelDeviceFile                 = "device/device"
-	testIntelUeventFile                 = "device/uevent"
-	testIntelVendorValue                = "0x8086\n"
-	testAMDVendorValue                  = "0x1002\n"
-	testAMDSysfsUUID                    = "amd-0000:0b:00.0"
-	testVRAMTotalFile                   = "device/mem_info_vram_total"
-	testVRAMUsedFile                    = "device/mem_info_vram_used"
-	samplerJSONModule                   = "json.sh"
-	samplerGPUCommonModule              = "gpu_common.sh"
-	samplerNVIDIAModule                 = "gpu_nvidia.sh"
-	samplerIntelModule                  = "gpu_intel.sh"
-	samplerAMDModule                    = "gpu_amd.sh"
-	readWSLHostMetricsLine              = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
-	applyWSLHostMetricsLine             = `apply_wsl_host_metrics`
-	allHostMetricsPrintLine             = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
+	samplerScriptMode           fs.FileMode = 0o600
+	samplerModulesDir                       = "sampler"
+	samplerManifestPath                     = "sampler/manifest.txt"
+	testPathEnv                             = "PATH"
+	testWSLDistroEnv                        = "WSL_DISTRO_NAME"
+	testWSLDistroName                       = "Ubuntu"
+	samplerProcessesModule                  = "processes.sh"
+	testIntelDRMClassEnv                    = "REMOTE_MONITOR_DRM_CLASS_DIR"
+	testIntelVendorFile                     = "device/vendor"
+	testIntelDeviceFile                     = "device/device"
+	testIntelUeventFile                     = "device/uevent"
+	testIntelVendorValue                    = "0x8086\n"
+	testAMDVendorValue                      = "0x1002\n"
+	testAMDSysfsUUID                        = "amd-0000:0b:00.0"
+	testVRAMTotalFile                       = "device/mem_info_vram_total"
+	testVRAMUsedFile                        = "device/mem_info_vram_used"
+	samplerJSONModule                       = "json.sh"
+	samplerPowerModule                      = "power.sh"
+	samplerGPUCommonModule                  = "gpu_common.sh"
+	samplerNVIDIAModule                     = "gpu_nvidia.sh"
+	samplerIntelModule                      = "gpu_intel.sh"
+	samplerAMDModule                        = "gpu_amd.sh"
+	testPowerSupplyEnv                      = "REMOTE_MONITOR_POWER_SUPPLY_DIR"
+	testPowerSupplyTypeFile                 = "type"
+	testPowerSupplyCapacityFile             = "capacity"
+	testPowerSupplyBattery0                 = "BAT0"
+	testPowerSupplyBattery1                 = "BAT1"
+	testPowerSupplyUPS0                     = "UPS0"
+	readWSLHostMetricsLine                  = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
+	applyWSLHostMetricsLine                 = `apply_wsl_host_metrics`
+	allHostMetricsPrintLine                 = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
 )
 
 func TestRemoteSamplerMatchesAssembledModules(t *testing.T) {
@@ -71,6 +78,103 @@ func TestRemoteSamplerPressureModuleCanBeSourcedIndependently(t *testing.T) {
 	got := runSamplerModuleSnippet(t, []string{samplerJSONModule, "pressure.sh"}, "read_pressure_avg10 "+shellQuote(pressureFile), nil)
 	if got != "1.23|0.45" {
 		t.Fatalf("expected pressure module to parse avg10 values, got %q", got)
+	}
+}
+
+func TestRemoteSamplerBuildsLaptopPowerJSONFromSysfs(t *testing.T) {
+	t.Parallel()
+
+	powerDir := writePowerSupplyFixture(t, map[string]map[string]string{
+		"AC0": {
+			testPowerSupplyTypeFile: "Mains\n",
+			"online":                "0\n",
+		},
+		testPowerSupplyBattery0: {
+			testPowerSupplyTypeFile:     "Battery\n",
+			"present":                   "1\n",
+			testPowerSupplyCapacityFile: "83\n",
+			"status":                    "Discharging\n",
+			"current_now":               "1500000\n",
+			"voltage_now":               "12000000\n",
+		},
+	})
+
+	got := parsePowerJSONForTest(t, runSamplerModuleSnippet(t, powerSamplerModules(), powerJSONSnippet(), map[string]string{
+		testPowerSupplyEnv: powerDir,
+	}))
+	if got.ExternalPowerOnline != 0 || got.BatteryPercent != 83 || got.BatteryStatus != "Discharging" || got.PowerDrawWatts != 18 || got.UPSPresent != 0 || got.PowerSourceName != testPowerSupplyBattery0 {
+		t.Fatalf("unexpected laptop power summary: %#v", got)
+	}
+	if len(got.Supplies) != 2 {
+		t.Fatalf("expected AC and battery supplies, got %#v", got.Supplies)
+	}
+	if got.Supplies[0].Name != "AC0" || got.Supplies[0].Type != "Mains" || got.Supplies[0].Online != 0 {
+		t.Fatalf("unexpected AC supply: %#v", got.Supplies[0])
+	}
+	if got.Supplies[1].Name != testPowerSupplyBattery0 || got.Supplies[1].CapacityPercent != 83 || got.Supplies[1].Status != "Discharging" || got.Supplies[1].PowerDrawWatts != 18 || got.Supplies[1].Present != 1 {
+		t.Fatalf("unexpected battery supply: %#v", got.Supplies[1])
+	}
+}
+
+func TestRemoteSamplerBuildsUPSPowerJSONFromSysfs(t *testing.T) {
+	t.Parallel()
+
+	powerDir := writePowerSupplyFixture(t, map[string]map[string]string{
+		testPowerSupplyUPS0: {
+			testPowerSupplyTypeFile:     "UPS\n",
+			"online":                    "1\n",
+			"present":                   "1\n",
+			testPowerSupplyCapacityFile: "55\n",
+			"status":                    "Full\n",
+			"power_now":                 "24000000\n",
+		},
+	})
+
+	got := parsePowerJSONForTest(t, runSamplerModuleSnippet(t, powerSamplerModules(), powerJSONSnippet(), map[string]string{
+		testPowerSupplyEnv: powerDir,
+	}))
+	if got.ExternalPowerOnline != 1 || got.BatteryPercent != -1 || got.PowerDrawWatts != 24 || got.UPSPresent != 1 || got.PowerSourceName != testPowerSupplyUPS0 {
+		t.Fatalf("unexpected UPS power summary: %#v", got)
+	}
+	if len(got.Supplies) != 1 {
+		t.Fatalf("expected one UPS supply, got %#v", got.Supplies)
+	}
+	ups := got.Supplies[0]
+	if ups.Name != testPowerSupplyUPS0 || ups.Type != "UPS" || ups.Online != 1 || ups.CapacityPercent != 55 || ups.Status != "Full" || ups.PowerDrawWatts != 24 || ups.Present != 1 {
+		t.Fatalf("unexpected UPS supply: %#v", ups)
+	}
+}
+
+func TestRemoteSamplerPowerJSONUsesSentinelsForMissingAndUnreadableFields(t *testing.T) {
+	t.Parallel()
+
+	powerDir := writePowerSupplyFixture(t, map[string]map[string]string{
+		testPowerSupplyBattery1: {
+			testPowerSupplyTypeFile:     "Battery\n",
+			testPowerSupplyCapacityFile: "83\n",
+		},
+	})
+	capacityPath := filepath.Join(powerDir, testPowerSupplyBattery1, testPowerSupplyCapacityFile)
+	if err := os.Remove(capacityPath); err != nil {
+		t.Fatalf("remove capacity file: %v", err)
+	}
+	// A directory is a root-safe stand-in for an unreadable scalar sysfs field.
+	if err := os.Mkdir(capacityPath, 0o700); err != nil {
+		t.Fatalf("replace capacity with directory: %v", err)
+	}
+
+	got := parsePowerJSONForTest(t, runSamplerModuleSnippet(t, powerSamplerModules(), powerJSONSnippet(), map[string]string{
+		testPowerSupplyEnv: powerDir,
+	}))
+	if got.ExternalPowerOnline != -1 || got.BatteryPercent != -1 || got.BatteryStatus != "" || got.PowerDrawWatts != -1 || got.UPSPresent != 0 || got.PowerSourceName != testPowerSupplyBattery1 {
+		t.Fatalf("unexpected partial power summary: %#v", got)
+	}
+	if len(got.Supplies) != 1 {
+		t.Fatalf("expected one partial battery supply, got %#v", got.Supplies)
+	}
+	supply := got.Supplies[0]
+	if supply.Name != testPowerSupplyBattery1 || supply.Type != "Battery" || supply.Online != -1 || supply.CapacityPercent != -1 || supply.Status != "" || supply.PowerDrawWatts != -1 || supply.Present != -1 {
+		t.Fatalf("expected sentinels for unreadable and missing fields, got %#v", supply)
 	}
 }
 
@@ -853,6 +957,35 @@ func amdGPUSamplerModules() []string {
 	return []string{samplerJSONModule, samplerGPUCommonModule, samplerAMDModule}
 }
 
+type powerJSONForTest struct {
+	ExternalPowerOnline int                    `json:"external_power_online"`
+	BatteryPercent      int                    `json:"battery_percent"`
+	BatteryStatus       string                 `json:"battery_status"`
+	PowerDrawWatts      float64                `json:"power_draw_w"`
+	UPSPresent          int                    `json:"ups_present"`
+	PowerSourceName     string                 `json:"source_name"`
+	Supplies            []core.PowerSupplyStat `json:"supplies"`
+}
+
+func powerJSONSnippet() string {
+	return `power_supply_class_path="${REMOTE_MONITOR_POWER_SUPPLY_DIR:-/sys/class/power_supply}"` + "\n" + `build_power_json`
+}
+
+func powerSamplerModules() []string {
+	return []string{samplerJSONModule, samplerPowerModule}
+}
+
+func parsePowerJSONForTest(t *testing.T, raw string) powerJSONForTest {
+	t.Helper()
+
+	var got powerJSONForTest
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("parse power JSON %q: %v", raw, err)
+	}
+
+	return got
+}
+
 func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
 	t.Helper()
 
@@ -917,6 +1050,26 @@ func writeIntelDRMCardFixture(t *testing.T, root, card string, files map[string]
 			t.Fatalf("write drm fixture %s: %v", name, err)
 		}
 	}
+}
+
+func writePowerSupplyFixture(t *testing.T, supplies map[string]map[string]string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	for name, files := range supplies {
+		supplyRoot := filepath.Join(root, name)
+		if err := os.MkdirAll(supplyRoot, 0o700); err != nil {
+			t.Fatalf("create power supply fixture: %v", err)
+		}
+		for file, contents := range files {
+			path := filepath.Join(supplyRoot, file)
+			if err := os.WriteFile(path, []byte(contents), samplerScriptMode); err != nil {
+				t.Fatalf("write power supply fixture %s: %v", path, err)
+			}
+		}
+	}
+
+	return root
 }
 
 func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) string {
@@ -1020,6 +1173,7 @@ func expectedSamplerModules() []string {
 		"filesystems.sh",
 		"disk.sh",
 		"network.sh",
+		samplerPowerModule,
 		samplerGPUCommonModule,
 		samplerNVIDIAModule,
 		samplerIntelModule,

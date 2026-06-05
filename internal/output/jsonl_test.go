@@ -57,6 +57,16 @@ func TestWriterEmitsNormalizedSampleJSONL(t *testing.T) {
 
 	gpus := assertArrayField(t, got, "gpus")
 	assertNumberField(t, firstObject(t, gpus), "power_draw_w", 103.12)
+
+	assertNumberField(t, got, "external_power_online", float64(1))
+	assertNumberField(t, got, "battery_percent", float64(83))
+	assertStringField(t, got, "battery_status", "Discharging")
+	assertNumberField(t, got, "power_draw_w", 12.34)
+	assertNumberField(t, got, "ups_present", float64(1))
+	assertStringField(t, got, "power_source_name", "BAT0")
+	powerSupplies := assertArrayField(t, got, "power_supplies")
+	assertStringField(t, firstObject(t, powerSupplies), "name", "BAT0")
+	assertNumberField(t, firstObject(t, powerSupplies), "capacity_percent", float64(83))
 }
 
 func TestWriterNormalizesNilSlicesToEmptyArrays(t *testing.T) {
@@ -72,7 +82,7 @@ func TestWriterNormalizesNilSlicesToEmptyArrays(t *testing.T) {
 		t.Fatalf("JSONL output is not valid JSON: %v", err)
 	}
 
-	for _, field := range []string{"net", "filesystems", "cpu_core_usage", "top_processes", "gpu_processes", "gpus"} {
+	for _, field := range []string{"net", "filesystems", "cpu_core_usage", "top_processes", "gpu_processes", "gpus", "power_supplies"} {
 		values := assertArrayField(t, got, field)
 		if len(values) != 0 {
 			t.Fatalf("%s = %#v, want empty array", field, values)
@@ -136,6 +146,13 @@ func populatedSample() core.Sample {
 	smp.TopProcesses = []core.ProcessStat{populatedProcessStat()}
 	smp.GPUProcesses = []core.GPUProcessStat{populatedGPUProcessStat()}
 	smp.GPUs = []core.GPUStat{populatedGPUStat()}
+	smp.ExternalPowerOnline = 1
+	smp.BatteryPercent = 83
+	smp.BatteryStatus = "Discharging"
+	smp.PowerDrawWatts = 12.34
+	smp.UPSPresent = 1
+	smp.PowerSourceName = "BAT0"
+	smp.PowerSupplies = []core.PowerSupplyStat{populatedPowerSupplyStat()}
 	smp.ReceivedAt = time.Unix(1716912346, 123).UTC()
 
 	return smp
@@ -221,6 +238,18 @@ func populatedGPUStat() core.GPUStat {
 		PCIeWidthMax:     16,
 		ThrottleReasons:  "power cap",
 		PState:           "P5",
+	}
+}
+
+func populatedPowerSupplyStat() core.PowerSupplyStat {
+	return core.PowerSupplyStat{
+		Name:            "BAT0",
+		Type:            "Battery",
+		Online:          -1,
+		CapacityPercent: 83,
+		Status:          "Discharging",
+		PowerDrawWatts:  12.34,
+		Present:         1,
 	}
 }
 
