@@ -26,6 +26,7 @@ const (
 	testHost            = "gpu-wsl"
 	testIfaceEth0       = "eth0"
 	testIfaceTailscale  = "tailscale0"
+	testIfaceWlan0      = "wlan0"
 	testPythonCommand   = "python"
 	testRemoteName      = "DESKTOP-63C6KR5"
 	testRemoteTimestamp = "2026-05-28 20:22:58"

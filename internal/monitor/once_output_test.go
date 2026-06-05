@@ -99,6 +99,37 @@ func TestRunOnceWritesSingleJSONLToStdout(t *testing.T) {
 	}
 }
 
+func TestRunOnceWritesSingleJSONLWithSelectedNetwork(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	firstSample := outputTestSample()
+	firstSample.Net = outputSelectionNetStats()
+
+	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
+		cfg.Once = true
+		cfg.OutputMode = core.OutputModeJSONL
+		cfg.NetIncludePatterns = []string{"wlan*"}
+	}), runDependencies{
+		stdout:      &out,
+		stdoutIsTTY: func() bool { return false },
+		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
+			defer close(sampleCh)
+			defer close(eventCh)
+			sampleCh <- firstSample
+		},
+	})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	lines := nonEmptyLines(out.String())
+	if len(lines) != 1 {
+		t.Fatalf("jsonl lines = %#v", lines)
+	}
+	assertJSONLineHasOnlyNetIfaces(t, lines[0], []string{outputIfaceWlan0})
+}
+
 func TestRunOnceWritesSingleJSONLToFile(t *testing.T) {
 	t.Parallel()
 
@@ -145,6 +176,40 @@ func TestRunOnceWritesSingleJSONLToFile(t *testing.T) {
 	assertJSONLineHasSample(t, lines[0], firstSample)
 	if strings.Contains(string(content), "stale contents") {
 		t.Fatalf("jsonl output file was not truncated: %q", string(content))
+	}
+}
+
+func TestRunOnceWritesTextWithSelectedNetworkSummary(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	firstSample := outputTestSample()
+	firstSample.Net = outputSelectionNetStats()
+
+	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
+		cfg.Once = true
+		cfg.OutputMode = core.OutputModeText
+		cfg.NetIncludePatterns = []string{outputIfaceEth0, outputIfaceWlan0}
+		cfg.NetAggregate = true
+	}), runDependencies{
+		stdout:      &out,
+		stdoutIsTTY: func() bool { return true },
+		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
+			defer close(sampleCh)
+			defer close(eventCh)
+			sampleCh <- firstSample
+		},
+	})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "NET RX 400 B/s") || !strings.Contains(got, "TX 50 B/s") {
+		t.Fatalf("text snapshot missing selected network summary: %q", got)
+	}
+	if strings.Contains(got, "1200 B/s") {
+		t.Fatalf("text snapshot used unfiltered network total: %q", got)
 	}
 }
 

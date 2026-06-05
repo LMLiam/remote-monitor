@@ -109,6 +109,9 @@ Useful flags:
 | `-process-sort` | none | `cpu` (`cpu`, `mem`) |
 | `-process-filter` | none | disabled |
 | `-process-count` | none | `4` |
+| `-net-include` | none | disabled; comma-separated interface names or glob patterns |
+| `-net-exclude` | none | disabled; comma-separated interface names or glob patterns |
+| `-net-aggregate` | none | disabled; replace selected interfaces with one aggregate row |
 | `-interval` | `MONITOR_INTERVAL` | `1` second |
 | `-history` | `MONITOR_HISTORY_LIMIT` | `240` samples |
 | `-stale-after` | `MONITOR_STALE_AFTER` | `interval * 3 + 1` seconds |
@@ -129,6 +132,32 @@ memory instead. `-process-filter` applies a case-insensitive substring match
 against the process command name and full command line exposed by `ps`; the
 displayed process column remains the command name. Filtering is applied before
 the `-process-count` row limit.
+
+## Network Interface Selection
+
+By default, network collection and display preserve the sampler's current
+interface behavior. Use `-net-include` and `-net-exclude` to focus network
+metrics on specific interfaces:
+
+```sh
+remote-monitor gpu-box -net-include eth0,wlan0
+remote-monitor gpu-box -net-exclude lo,docker*,br-*
+remote-monitor gpu-box -net-include en*,eth* -net-aggregate
+remote-monitor gpu-box -net-exclude lo,docker*,br-* -net-aggregate
+```
+
+Patterns are comma-separated interface names or simple glob patterns. Include
+patterns are applied first; if an include list is present, only matching
+interfaces are eligible. Exclude patterns are then applied to that eligible set.
+With no include or exclude flags, all sampled network interfaces remain visible.
+
+Empty pattern segments and malformed glob patterns fail before monitoring
+starts. Patterns that are valid but match no sampled interfaces are allowed; the
+network list is then empty. `-net-aggregate` replaces per-interface rows with a
+single `aggregate` interface row whose receive/transmit rates, packet rates,
+link speeds, drops, errors, and overruns are summed across the selected
+interfaces. TUI, non-interactive text, and JSONL output all use the same
+selected interface set.
 
 ## JSONL Export
 

@@ -14,6 +14,12 @@ import (
 	core "github.com/lmliam/remote-monitor/internal/core"
 )
 
+const (
+	outputIfaceDocker0 = "docker0"
+	outputIfaceEth0    = "eth0"
+	outputIfaceWlan0   = "wlan0"
+)
+
 func TestRunWritesJSONLToStdoutWithoutLifecycleText(t *testing.T) {
 	t.Parallel()
 
@@ -111,6 +117,37 @@ func TestRunWritesJSONLToFileAndKeepsStdoutEmpty(t *testing.T) {
 	}
 }
 
+func TestRunWritesJSONLWithSelectedAggregateNetwork(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	sample := outputTestSample()
+	sample.Net = outputSelectionNetStats()
+
+	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
+		cfg.OutputMode = core.OutputModeJSONL
+		cfg.NetIncludePatterns = []string{outputIfaceEth0, outputIfaceWlan0}
+		cfg.NetAggregate = true
+	}), runDependencies{
+		stdout:      &out,
+		stdoutIsTTY: func() bool { return false },
+		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
+			defer close(sampleCh)
+			defer close(eventCh)
+			sampleCh <- sample
+		},
+	})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	lines := nonEmptyLines(out.String())
+	if len(lines) != 1 {
+		t.Fatalf("jsonl lines = %#v", lines)
+	}
+	assertJSONLineHasAggregateNet(t, lines[0], 400, 50)
+}
+
 func TestResolveOutputModeKeepsTTYAndNonTTYDefaults(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +226,9 @@ func outputTestConfig(overrides ...func(*core.Config)) core.Config {
 		ProcessSort:        "",
 		ProcessFilter:      "",
 		ProcessCount:       0,
+		NetIncludePatterns: nil,
+		NetExcludePatterns: nil,
+		NetAggregate:       false,
 		HistoryLimit:       30,
 		StaleAfter:         4 * time.Second,
 		ReconnectBaseDelay: time.Second,
@@ -277,6 +317,53 @@ func outputTestNetStat() core.NetStat {
 	}
 }
 
+func outputSelectionNetStats() []core.NetStat {
+	return []core.NetStat{
+		{
+			Iface:      outputIfaceEth0,
+			RXBps:      100,
+			TXBps:      20,
+			RXPps:      10,
+			TXPps:      2,
+			SpeedMbps:  1000,
+			RXDrops:    0,
+			RXErrors:   0,
+			RXOverruns: 0,
+			TXDrops:    0,
+			TXErrors:   0,
+			TXOverruns: 0,
+		},
+		{
+			Iface:      outputIfaceWlan0,
+			RXBps:      300,
+			TXBps:      30,
+			RXPps:      30,
+			TXPps:      3,
+			SpeedMbps:  100,
+			RXDrops:    0,
+			RXErrors:   0,
+			RXOverruns: 0,
+			TXDrops:    0,
+			TXErrors:   0,
+			TXOverruns: 0,
+		},
+		{
+			Iface:      outputIfaceDocker0,
+			RXBps:      1000,
+			TXBps:      200,
+			RXPps:      100,
+			TXPps:      20,
+			SpeedMbps:  -1,
+			RXDrops:    0,
+			RXErrors:   0,
+			RXOverruns: 0,
+			TXDrops:    0,
+			TXErrors:   0,
+			TXOverruns: 0,
+		},
+	}
+}
+
 func outputTestGPUStat() core.GPUStat {
 	return core.GPUStat{
 		Index:            0,
@@ -347,5 +434,47 @@ func assertJSONLineHasSample(t *testing.T, line string, sample core.Sample) {
 	var compacted bytes.Buffer
 	if err := json.Compact(&compacted, []byte(line)); err != nil {
 		t.Fatalf("compact JSON line: %v", err)
+	}
+}
+
+func assertJSONLineHasAggregateNet(t *testing.T, line string, wantRXBps, wantTXBps float64) {
+	t.Helper()
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(line), &got); err != nil {
+		t.Fatalf("invalid JSON line %q: %v", line, err)
+	}
+	net, ok := got["net"].([]any)
+	if !ok || len(net) != 1 {
+		t.Fatalf("net = %#v, want one aggregate row", got["net"])
+	}
+	agg, ok := net[0].(map[string]any)
+	if !ok {
+		t.Fatalf("aggregate net row = %#v", net[0])
+	}
+	if agg["iface"] != "aggregate" || agg["rx_bps"] != wantRXBps || agg["tx_bps"] != wantTXBps {
+		t.Fatalf("aggregate net row = %#v", agg)
+	}
+}
+
+func assertJSONLineHasOnlyNetIfaces(t *testing.T, line string, want []string) {
+	t.Helper()
+
+	var got map[string]any
+	if err := json.Unmarshal([]byte(line), &got); err != nil {
+		t.Fatalf("invalid JSON line %q: %v", line, err)
+	}
+	net, ok := got["net"].([]any)
+	if !ok || len(net) != len(want) {
+		t.Fatalf("net = %#v, want interfaces %#v", got["net"], want)
+	}
+	for i, wantIface := range want {
+		row, ok := net[i].(map[string]any)
+		if !ok {
+			t.Fatalf("net row %d = %#v", i, net[i])
+		}
+		if row["iface"] != wantIface {
+			t.Fatalf("net row %d iface = %#v, want %q", i, row["iface"], wantIface)
+		}
 	}
 }

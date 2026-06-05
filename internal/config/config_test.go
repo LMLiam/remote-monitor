@@ -12,13 +12,15 @@ import (
 )
 
 const (
-	testExampleHost = "example-host"
-	testFlagConfig  = "-config"
-	testFlagOutput  = "-output"
-	testFlagOut     = "-out"
-	testFlagProfile = "-profile"
-	testFlagTheme   = "-theme"
-	testProfileName = "gpu-box"
+	testExampleHost    = "example-host"
+	testFlagConfig     = "-config"
+	testFlagNetExclude = "-net-exclude"
+	testFlagNetInclude = "-net-include"
+	testFlagOutput     = "-output"
+	testFlagOut        = "-out"
+	testFlagProfile    = "-profile"
+	testFlagTheme      = "-theme"
+	testProfileName    = "gpu-box"
 )
 
 func TestParseConfigRequiresHost(t *testing.T) {
@@ -274,6 +276,48 @@ func TestParseConfigRejectsInvalidProcessOptions(t *testing.T) {
 		_, err := config.ParseConfig([]string{"-process-count", "0", testExampleHost})
 		assertErrorContains(t, err, "process count must be at least 1")
 	})
+}
+
+func TestParseConfigAppliesNetworkSelectionOptions(t *testing.T) {
+	t.Setenv("REMOTE_MONITOR_HOST", "")
+
+	cfg, err := config.ParseConfig([]string{
+		testFlagNetInclude, "eth0,wlan*",
+		testFlagNetExclude, "docker*,br-*",
+		"-net-aggregate",
+		testExampleHost,
+	})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	if got := strings.Join(cfg.NetIncludePatterns, ","); got != "eth0,wlan*" {
+		t.Fatalf("net include patterns = %q", got)
+	}
+	if got := strings.Join(cfg.NetExcludePatterns, ","); got != "docker*,br-*" {
+		t.Fatalf("net exclude patterns = %q", got)
+	}
+	if !cfg.NetAggregate {
+		t.Fatal("net aggregate = false")
+	}
+}
+
+func TestParseConfigRejectsInvalidNetworkPatterns(t *testing.T) {
+	t.Parallel()
+
+	for name, args := range map[string][]string{
+		"empty include segment": {testFlagNetInclude, "eth0,,wlan0", testExampleHost},
+		"empty exclude segment": {testFlagNetExclude, ",", testExampleHost},
+		"bad include glob":      {testFlagNetInclude, "[", testExampleHost},
+		"bad exclude glob":      {testFlagNetExclude, "docker[", testExampleHost},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := config.ParseConfig(args)
+			assertErrorContains(t, err, "invalid network interface pattern")
+		})
+	}
 }
 
 func TestParseConfigFallsBackToAuroraForUnknownThemes(t *testing.T) {
