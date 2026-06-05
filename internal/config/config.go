@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,9 @@ var ErrUnknownProcessSort = errors.New("unknown process sort mode")
 
 // ErrInvalidProcessCount reports an unsupported -process-count value.
 var ErrInvalidProcessCount = errors.New("invalid process count")
+
+// ErrInvalidNetworkPattern reports an unsupported network interface pattern.
+var ErrInvalidNetworkPattern = errors.New("invalid network interface pattern")
 
 const (
 	defaultHistoryLimit       = 240
@@ -61,6 +65,9 @@ func ParseConfig(args []string) (core.Config, error) {
 	processSort := fs.String("process-sort", cliValues.processSort, "Process sort order (cpu, mem)")
 	processFilter := fs.String("process-filter", cliValues.processFilter, "Case-insensitive process filter text")
 	processCount := fs.Int("process-count", cliValues.processCount, "Maximum process rows per sample")
+	netInclude := fs.String("net-include", "", "Comma-separated network interface names or glob patterns to include")
+	netExclude := fs.String("net-exclude", "", "Comma-separated network interface names or glob patterns to exclude")
+	netAggregate := fs.Bool("net-aggregate", false, "Replace per-interface network rows with one selected-interface aggregate")
 	theme := fs.String("theme", cliValues.theme, "Color theme (aurora, basic, windows-xp)")
 	noTrueColor := fs.Bool("no-truecolor", cliValues.noTrueColor, "Force 256-color rendering even on truecolor terminals")
 	sshConnectTimeout := fs.Int("ssh-connect-timeout", cliValues.sshConnectTimeout, "SSH connect timeout in seconds")
@@ -85,6 +92,15 @@ func ParseConfig(args []string) (core.Config, error) {
 	}
 	if *processCount < 1 {
 		return core.Config{}, fmt.Errorf("%w: process count must be at least 1", ErrInvalidProcessCount)
+	}
+	explicitFlags := visitedFlags(fs)
+	netIncludePatterns, err := parseNetworkPatterns(*netInclude, explicitFlags["net-include"])
+	if err != nil {
+		return core.Config{}, err
+	}
+	netExcludePatterns, err := parseNetworkPatterns(*netExclude, explicitFlags["net-exclude"])
+	if err != nil {
+		return core.Config{}, err
 	}
 
 	cliValues = configValues{
@@ -119,7 +135,7 @@ func ParseConfig(args []string) (core.Config, error) {
 		}
 	}
 
-	applyExplicitFlags(&resolved, cliValues, visitedFlags(fs))
+	applyExplicitFlags(&resolved, cliValues, explicitFlags)
 	if fs.NArg() > 0 {
 		resolved.host = fs.Arg(0)
 	}
@@ -130,12 +146,27 @@ func ParseConfig(args []string) (core.Config, error) {
 	resolved.clamp()
 	resolved.theme = core.CanonicalThemeName(resolved.theme)
 
+	return buildCoreConfig(resolved, netIncludePatterns, netExcludePatterns, *netAggregate, *once, resolvedOutputMode, *outputPath), nil
+}
+
+func buildCoreConfig(
+	resolved configValues,
+	netIncludePatterns []string,
+	netExcludePatterns []string,
+	netAggregate bool,
+	once bool,
+	outputMode string,
+	outputPath string,
+) core.Config {
 	return core.Config{
 		Host:               resolved.host,
 		Interval:           time.Duration(resolved.interval) * time.Second,
 		ProcessSort:        resolved.processSort,
 		ProcessFilter:      resolved.processFilter,
 		ProcessCount:       resolved.processCount,
+		NetIncludePatterns: netIncludePatterns,
+		NetExcludePatterns: netExcludePatterns,
+		NetAggregate:       netAggregate,
 		HistoryLimit:       resolved.history,
 		StaleAfter:         time.Duration(resolved.staleAfter) * time.Second,
 		ReconnectBaseDelay: time.Duration(resolved.reconnectDelay) * time.Second,
@@ -143,9 +174,9 @@ func ParseConfig(args []string) (core.Config, error) {
 		Compact:            resolved.compact,
 		NoBanner:           resolved.noBanner,
 		ShowVersion:        false,
-		Once:               *once,
-		OutputMode:         resolvedOutputMode,
-		OutputPath:         *outputPath,
+		Once:               once,
+		OutputMode:         outputMode,
+		OutputPath:         outputPath,
 		Theme:              resolved.theme,
 		DisableTrueColor:   resolved.noTrueColor,
 		SSHConnectTimeout:  time.Duration(resolved.sshConnectTimeout) * time.Second,
@@ -153,7 +184,33 @@ func ParseConfig(args []string) (core.Config, error) {
 		SSHAliveCountMax:   resolved.sshAliveCount,
 		SSHControlPersist:  time.Duration(resolved.sshControlPersist) * time.Second,
 		SSHControlPath:     "",
-	}, nil
+	}
+}
+
+func parseNetworkPatterns(value string, explicit bool) ([]string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		if explicit {
+			return nil, fmt.Errorf("%w: empty pattern", ErrInvalidNetworkPattern)
+		}
+
+		return nil, nil
+	}
+
+	rawPatterns := strings.Split(trimmed, ",")
+	patterns := make([]string, 0, len(rawPatterns))
+	for _, raw := range rawPatterns {
+		pattern := strings.TrimSpace(raw)
+		if pattern == "" {
+			return nil, fmt.Errorf("%w: empty pattern", ErrInvalidNetworkPattern)
+		}
+		if _, err := path.Match(pattern, ""); err != nil {
+			return nil, fmt.Errorf("%w %q: %w", ErrInvalidNetworkPattern, pattern, err)
+		}
+		patterns = append(patterns, pattern)
+	}
+
+	return patterns, nil
 }
 
 func parseOutputMode(mode string) (string, error) {

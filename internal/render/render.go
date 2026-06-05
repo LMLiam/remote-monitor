@@ -28,11 +28,13 @@ func NonInteractive(state core.AppState) string {
 	s := state.Current
 
 	line := fmt.Sprintf(
-		"%s | state %s | CPU %s | RAM %s | GPU %s | VRAM %s | TEMP %s",
+		"%s | state %s | CPU %s | RAM %s | NET RX %s TX %s | GPU %s | VRAM %s | TEMP %s",
 		fallbackString(s.RemoteTimestamp, time.Now().Format("2006-01-02 15:04:05")),
 		status,
 		percentDisplay(s.CPUPercent),
 		formatMiBPair(s.RAMUsedMiB, s.RAMTotalMiB),
+		formatBps(metrics.TotalNetRXBps(s)),
+		formatBps(metrics.TotalNetTXBps(s)),
 		percentDisplay(metrics.OverallGPUUtil(s)),
 		percentDisplay(metrics.OverallVRAMPct(s)),
 		tempDisplay(metrics.OverallTempValue(s)),
