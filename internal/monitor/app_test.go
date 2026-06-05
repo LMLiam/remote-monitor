@@ -177,3 +177,95 @@ func TestApplySampleAppendsExpandedHistorySeries(t *testing.T) {
 		t.Fatalf("netIssueHistory = %#v", got)
 	}
 }
+
+func TestApplySampleSelectsNetworkInterfacesBeforeHistory(t *testing.T) {
+	t.Parallel()
+
+	state := testState(func(state *core.AppState) {
+		state.Cfg = testConfig(func(cfg *core.Config) {
+			cfg.HistoryLimit = 30
+			cfg.NetIncludePatterns = []string{"eth*", "wlan*"}
+			cfg.NetExcludePatterns = []string{"eth1"}
+		})
+	})
+	smp := testSample(func(smp *core.Sample) {
+		smp.Net = []core.NetStat{
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = testIfaceEth0
+				net.RXBps = 100
+				net.TXBps = 20
+			}),
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = "eth1"
+				net.RXBps = 1000
+				net.TXBps = 200
+			}),
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = testIfaceTailscale
+				net.RXBps = 500
+				net.TXBps = 50
+			}),
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = testIfaceWlan0
+				net.RXBps = 300
+				net.TXBps = 30
+			}),
+		}
+		smp.ReceivedAt = time.Unix(50, 0)
+	})
+
+	monitor.ApplySample(&state, smp)
+
+	if got := state.Current.Net; len(got) != 2 || got[0].Iface != testIfaceEth0 || got[1].Iface != testIfaceWlan0 {
+		t.Fatalf("selected current net = %#v", got)
+	}
+	if got := state.NetRXHistory; len(got) != 1 || got[0] != 400 {
+		t.Fatalf("selected net RX history = %#v", got)
+	}
+	if got := state.NetTXHistory; len(got) != 1 || got[0] != 50 {
+		t.Fatalf("selected net TX history = %#v", got)
+	}
+}
+
+func TestApplySampleAggregatesSelectedNetworkInterfaces(t *testing.T) {
+	t.Parallel()
+
+	state := testState(func(state *core.AppState) {
+		state.Cfg = testConfig(func(cfg *core.Config) {
+			cfg.HistoryLimit = 30
+			cfg.NetIncludePatterns = []string{testIfaceEth0, testIfaceWlan0}
+			cfg.NetAggregate = true
+		})
+	})
+	smp := testSample(func(smp *core.Sample) {
+		smp.Net = []core.NetStat{
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = testIfaceEth0
+				net.RXBps = 100
+				net.TXBps = 20
+				net.SpeedMbps = 1000
+			}),
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = testIfaceWlan0
+				net.RXBps = 300
+				net.TXBps = 30
+				net.SpeedMbps = 100
+			}),
+			testNetStat(func(net *core.NetStat) {
+				net.Iface = "docker0"
+				net.RXBps = 1000
+				net.TXBps = 200
+			}),
+		}
+		smp.ReceivedAt = time.Unix(60, 0)
+	})
+
+	monitor.ApplySample(&state, smp)
+
+	if got := state.Current.Net; len(got) != 1 || got[0].Iface != metrics.NetAggregateInterface || got[0].RXBps != 400 || got[0].TXBps != 50 || got[0].SpeedMbps != 1100 {
+		t.Fatalf("aggregate current net = %#v", got)
+	}
+	if got := state.NetRXHistory; len(got) != 1 || got[0] != 400 {
+		t.Fatalf("aggregate net RX history = %#v", got)
+	}
+}

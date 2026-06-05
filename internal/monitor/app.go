@@ -213,7 +213,8 @@ func writeOnceSample(
 	stdout io.Writer,
 	writer *jsonl.Writer,
 ) error {
-	ApplySample(state, smp)
+	smp = prepareSampleForConfig(state.Cfg, smp)
+	applyPreparedSample(state, smp)
 	if outputMode == core.OutputModeJSONL {
 		return writer.WriteSample(smp)
 	}
@@ -309,8 +310,7 @@ func runJSONL(
 
 				continue
 			}
-			ApplySample(&state, smp)
-			if err := writer.WriteSample(smp); err != nil {
+			if err := writeJSONLSample(&state, smp, writer); err != nil {
 				return err
 			}
 		}
@@ -333,8 +333,7 @@ func drainJSONLPending(
 
 				continue
 			}
-			ApplySample(state, smp)
-			if err := writer.WriteSample(smp); err != nil {
+			if err := writeJSONLSample(state, smp, writer); err != nil {
 				return err
 			}
 
@@ -357,6 +356,13 @@ func drainJSONLPending(
 
 		return nil
 	}
+}
+
+func writeJSONLSample(state *core.AppState, smp core.Sample, writer *jsonl.Writer) error {
+	smp = prepareSampleForConfig(state.Cfg, smp)
+	applyPreparedSample(state, smp)
+
+	return writer.WriteSample(smp)
 }
 
 func initialAppState(cfg core.Config) core.AppState {
@@ -428,6 +434,12 @@ func ApplyEvent(state *core.AppState, ev core.StreamEvent) {
 
 // ApplySample merges a new sample and updates all rolling history series.
 func ApplySample(state *core.AppState, smp core.Sample) {
+	smp = prepareSampleForConfig(state.Cfg, smp)
+
+	applyPreparedSample(state, smp)
+}
+
+func applyPreparedSample(state *core.AppState, smp core.Sample) {
 	if smp.ReceivedAt.IsZero() {
 		smp.ReceivedAt = time.Now()
 	}
@@ -458,6 +470,12 @@ func ApplySample(state *core.AppState, smp core.Sample) {
 	appendHistory64(&state.NetRXHistory, metrics.TotalNetRXBps(smp), state.Cfg.HistoryLimit)
 	appendHistory64(&state.NetTXHistory, metrics.TotalNetTXBps(smp), state.Cfg.HistoryLimit)
 	appendHistory(&state.NetIssueHistory, metrics.NetIssueHistoryPercent(smp), state.Cfg.HistoryLimit)
+}
+
+func prepareSampleForConfig(cfg core.Config, smp core.Sample) core.Sample {
+	smp.Net = metrics.SelectNetStats(smp.Net, cfg.NetIncludePatterns, cfg.NetExcludePatterns, cfg.NetAggregate)
+
+	return smp
 }
 
 // DrainPending applies all buffered samples and events without blocking.

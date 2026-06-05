@@ -35,6 +35,9 @@ type Config struct {
 	ProcessSort        string
 	ProcessFilter      string
 	ProcessCount       int
+	NetIncludePatterns []string
+	NetExcludePatterns []string
+	NetAggregate       bool
 	HistoryLimit       int
 	StaleAfter         time.Duration
 	ReconnectBaseDelay time.Duration
