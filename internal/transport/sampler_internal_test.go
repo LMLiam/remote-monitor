@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 	"testing"
 
 	core "github.com/lmliam/remote-monitor/internal/core"
+	"github.com/lmliam/remote-monitor/internal/parser"
 )
 
 const (
@@ -239,6 +241,51 @@ func TestRemoteSamplerPowerJSONUsesSentinelsForMissingAndUnreadableFields(t *tes
 	supply := got.Supplies[0]
 	if supply.Name != testPowerSupplyBattery1 || supply.Type != "Battery" || supply.Online != -1 || supply.CapacityPercent != -1 || supply.Status != "" || supply.PowerDrawWatts != -1 || supply.Present != -1 {
 		t.Fatalf("expected sentinels for unreadable and missing fields, got %#v", supply)
+	}
+}
+
+func TestRemoteSamplerEscapesJSONControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule}, "json_escape "+bashANSIControlLiteralForTest(), nil)
+	want := "cpu" + escapedASCIIControlsForTest() + `\\\"name`
+	if got != want {
+		t.Fatalf("escaped JSON string mismatch\nwant %q\n got %q", want, got)
+	}
+
+	var parsed struct {
+		Value string `json:"value"`
+	}
+	raw := `{"value":"` + got + `"}`
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		t.Fatalf("expected escaped control characters to produce valid JSON %q: %v", raw, err)
+	}
+	parsedWant := "cpu" + asciiControlsForTest() + "\\\"name"
+	if parsed.Value != parsedWant {
+		t.Fatalf("parsed escaped value mismatch\nwant %q\n got %q", parsedWant, parsed.Value)
+	}
+}
+
+func TestRemoteSamplerEscapedControlCharactersParseAsSample(t *testing.T) {
+	t.Parallel()
+
+	line := runSamplerModuleSnippet(t, []string{samplerJSONModule}, fmt.Sprintf(strings.Join([]string{
+		`cpu_name="$(json_escape %s)"`,
+		`command="$(json_escape %s)"`,
+		`printf '{"version":1,"cpu_name":"%%s","top_processes":[{"pid":4242,"command":"%%s","cpu_percent":12,"rss_mib":64}]}' "${cpu_name}" "${command}"`,
+	}, "\n"), bashANSIControlLiteralForTest(), bashANSIControlLiteralForTest()), nil)
+
+	var p parser.Parser
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected sampler-produced escaped controls to parse, line: %q, error: %v", line, p.LastError())
+	}
+	want := "cpu" + asciiControlsForTest() + "\\\"name"
+	if got.CPUName != want {
+		t.Fatalf("cpu name round trip mismatch\nwant %q\n got %q", want, got.CPUName)
+	}
+	if len(got.TopProcesses) != 1 || got.TopProcesses[0].Command != want {
+		t.Fatalf("process command round trip mismatch\nwant %q\n got %#v", want, got.TopProcesses)
 	}
 }
 
@@ -1106,6 +1153,48 @@ func parseNetworkJSONLinesForTest(t *testing.T, raw string) [][]core.NetStat {
 	}
 
 	return samples
+}
+
+func asciiControlsForTest() string {
+	var value strings.Builder
+	for code := 1; code < 0x20; code++ {
+		value.WriteByte(byte(code))
+	}
+
+	return value.String()
+}
+
+func bashANSIControlLiteralForTest() string {
+	var value strings.Builder
+	value.WriteString("$'cpu")
+	for code := 1; code < 0x20; code++ {
+		_, _ = fmt.Fprintf(&value, `\%03o`, code)
+	}
+	value.WriteString(`\\"name'`)
+
+	return value.String()
+}
+
+func escapedASCIIControlsForTest() string {
+	var value strings.Builder
+	for code := 1; code < 0x20; code++ {
+		switch code {
+		case '\b':
+			value.WriteString(`\b`)
+		case '\t':
+			value.WriteString(`\t`)
+		case '\n':
+			value.WriteString(`\n`)
+		case '\f':
+			value.WriteString(`\f`)
+		case '\r':
+			value.WriteString(`\r`)
+		default:
+			_, _ = fmt.Fprintf(&value, `\u%04x`, code)
+		}
+	}
+
+	return value.String()
 }
 
 func prependTestPath(dir string) string {
