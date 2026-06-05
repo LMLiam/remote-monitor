@@ -368,6 +368,9 @@ read_top_process_snapshot() {
       if (pid == self || cmd == "") {
         next
       }
+      if (pid !~ /^[0-9]+$/ || $2 !~ /^[0-9]+([.][0-9]+)?$/ || $3 !~ /^[0-9]+$/) {
+        next
+      }
       if (cmd ~ /^(ps|awk|sort|head|tail|sleep|sampler\.sh)$/) {
         next
       }
