@@ -3,6 +3,7 @@ package transport
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -175,6 +176,28 @@ func TestRemoteSamplerPowerJSONUsesSentinelsForMissingAndUnreadableFields(t *tes
 	supply := got.Supplies[0]
 	if supply.Name != testPowerSupplyBattery1 || supply.Type != "Battery" || supply.Online != -1 || supply.CapacityPercent != -1 || supply.Status != "" || supply.PowerDrawWatts != -1 || supply.Present != -1 {
 		t.Fatalf("expected sentinels for unreadable and missing fields, got %#v", supply)
+	}
+}
+
+func TestRemoteSamplerEscapesJSONControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule}, `json_escape $'cpu\001\002\003\004\005\006\007\010\011\012\013\014\015\016\017\020\021\022\023\024\025\026\027\030\031\032\033\034\035\036\037\\"name'`, nil)
+	want := "cpu" + escapedASCIIControlsForTest() + `\\\"name`
+	if got != want {
+		t.Fatalf("escaped JSON string mismatch\nwant %q\n got %q", want, got)
+	}
+
+	var parsed struct {
+		Value string `json:"value"`
+	}
+	raw := `{"value":"` + got + `"}`
+	if err := json.Unmarshal([]byte(raw), &parsed); err != nil {
+		t.Fatalf("expected escaped control characters to produce valid JSON %q: %v", raw, err)
+	}
+	parsedWant := "cpu" + asciiControlsForTest() + "\\\"name"
+	if parsed.Value != parsedWant {
+		t.Fatalf("parsed escaped value mismatch\nwant %q\n got %q", parsedWant, parsed.Value)
 	}
 }
 
@@ -1023,6 +1046,37 @@ func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
 	}
 
 	return got
+}
+
+func asciiControlsForTest() string {
+	var value strings.Builder
+	for code := 1; code < 0x20; code++ {
+		value.WriteByte(byte(code))
+	}
+
+	return value.String()
+}
+
+func escapedASCIIControlsForTest() string {
+	var value strings.Builder
+	for code := 1; code < 0x20; code++ {
+		switch code {
+		case '\b':
+			value.WriteString(`\b`)
+		case '\t':
+			value.WriteString(`\t`)
+		case '\n':
+			value.WriteString(`\n`)
+		case '\f':
+			value.WriteString(`\f`)
+		case '\r':
+			value.WriteString(`\r`)
+		default:
+			_, _ = fmt.Fprintf(&value, `\u%04x`, code)
+		}
+	}
+
+	return value.String()
 }
 
 func prependTestPath(dir string) string {
