@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  SHELLCHECK_IMAGE: docker.io/koalaman/shellcheck:v0.11.0
+  SHFMT_VERSION: v3.13.1
+
 jobs:
   go:
     name: Go Checks
@@ -35,6 +39,23 @@ jobs:
             echo "$unformatted"
             exit 1
           fi
+
+      - name: Check shell formatting
+        run: go run "mvdan.cc/sh/v3/cmd/shfmt@${SHFMT_VERSION}" -i 2 -ci -d .github/scripts internal/transport/sampler internal/transport/sampler.sh tests/e2e/ssh-target
+
+      - name: ShellCheck
+        run: |
+          docker run --rm -v "$PWD:/mnt" -w /mnt "${SHELLCHECK_IMAGE}" --version
+          docker run --rm -v "$PWD:/mnt" -w /mnt "${SHELLCHECK_IMAGE}" \
+            -S warning -s bash \
+            .github/scripts/*.sh \
+            tests/e2e/ssh-target/*.sh \
+            internal/transport/sampler.sh
+          # Sampler modules are Bash fragments sourced into sampler.sh. Checked
+          # directly, cross-module reads and writes look unused or unassigned.
+          docker run --rm -v "$PWD:/mnt" -w /mnt "${SHELLCHECK_IMAGE}" \
+            -S warning -s bash -e SC2034,SC2154 \
+            internal/transport/sampler/*.sh
 
       - name: Test conventional title validator
         run: bash .github/scripts/test-conventional-title.sh

@@ -85,7 +85,7 @@ network_refresh_sample_count() {
   local samples="${network_refresh_samples:-${filesystem_refresh_samples:-1}}"
 
   case "${samples}" in
-    ''|*[!0-9]*|0)
+    '' | *[!0-9]* | 0)
       samples=1
       ;;
   esac
@@ -129,9 +129,9 @@ read_net_speed_mbps() {
   local speed='-1'
 
   if [ -r "${speed_path}" ]; then
-    speed="$(tr -d '[:space:]' < "${speed_path}" 2>/dev/null || printf '%s' '-1')"
+    speed="$(tr -d '[:space:]' <"${speed_path}" 2>/dev/null || printf '%s' '-1')"
     case "${speed}" in
-      ''|*[!0-9-]*)
+      '' | *[!0-9-]*)
         speed='-1'
         ;;
     esac
@@ -176,8 +176,8 @@ build_net_json() {
   for iface in "${tracked_net_ifaces[@]}"; do
     current_sample="$(read_net_sample "${iface}")"
     previous_sample="${prev_net_sample[${iface}]:-${unknown_net_sample}}"
-    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns <<< "${current_sample}"
-    IFS='|' read -r prev_rx prev_tx prev_rx_packets prev_tx_packets prev_rx_drops prev_rx_errors prev_rx_overruns prev_tx_drops prev_tx_errors prev_tx_overruns <<< "${previous_sample}"
+    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns <<<"${current_sample}"
+    IFS='|' read -r prev_rx prev_tx prev_rx_packets prev_tx_packets prev_rx_drops prev_rx_errors prev_rx_overruns prev_tx_drops prev_tx_errors prev_tx_overruns <<<"${previous_sample}"
     speed_mbps="$(read_net_speed_mbps "${iface}")"
 
     if [ "${current_rx}" -ge 0 ] && [ "${prev_rx}" -ge 0 ]; then

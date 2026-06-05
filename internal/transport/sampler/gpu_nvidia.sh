@@ -4,7 +4,7 @@ boolish_active() {
   value="$(printf '%s' "${value}" | tr '[:upper:]' '[:lower:]')"
   value="${value// /}"
   case "${value}" in
-    ''|n/a|-1|0|false|no|disabled|inactive|notactive)
+    '' | n/a | -1 | 0 | false | no | disabled | inactive | notactive)
       return 1
       ;;
   esac
@@ -13,7 +13,6 @@ boolish_active() {
 
 summarize_gpu_throttle_reasons() {
   local reasons=''
-  local add_reason
 
   add_reason() {
     if [ -z "${reasons}" ]; then
@@ -79,7 +78,7 @@ build_gpu_process_json() {
     if [ "${count}" -ge 4 ]; then
       break
     fi
-  done <<< "${proc_output}"
+  done <<<"${proc_output}"
   printf ']'
 }
 
@@ -89,7 +88,7 @@ build_nvidia_gpu_json() {
   local gpu_output=''
   local gpu_extra_output=''
   local gpu_throttle_output=''
-  local attempt
+  local _attempt
   local comma=''
   local -a encoder_utils decoder_utils graphics_clocks video_clocks pcie_gen_current pcie_gen_max pcie_width_current pcie_width_max throttle_reasons
   local encoder_util decoder_util graphics_clock video_clock pcie_gen_cur pcie_gen_cap pcie_width_cur pcie_width_cap throttle_reason
@@ -159,12 +158,12 @@ build_nvidia_gpu_json() {
         "$(json_escape "${throttle_reason}")" \
         "$(json_escape "${pstate}")"
       comma=','
-    done <<< "${gpu_combined_output}"
+    done <<<"${gpu_combined_output}"
     printf ']'
     return
   fi
 
-  for attempt in 1 2; do
+  for _attempt in 1 2; do
     if gpu_output="$("${nvidia_smi_path}" \
       --query-gpu=index,uuid,name,utilization.gpu,utilization.memory,memory.used,memory.total,temperature.gpu,power.draw,power.limit,fan.speed,clocks.sm,clocks.max.sm,clocks.mem,clocks.max.mem,pstate \
       --format=csv,noheader,nounits 2>/dev/null)" && [ -n "${gpu_output}" ]; then
@@ -195,7 +194,7 @@ build_nvidia_gpu_json() {
       pcie_gen_max[idx]="$(normalize_int "${pcie_gen_cap}")"
       pcie_width_current[idx]="$(normalize_int "${pcie_width_cur}")"
       pcie_width_max[idx]="$(normalize_int "${pcie_width_cap}")"
-    done <<< "${gpu_extra_output}"
+    done <<<"${gpu_extra_output}"
   fi
 
   if gpu_throttle_output="$("${nvidia_smi_path}" \
@@ -207,7 +206,7 @@ build_nvidia_gpu_json() {
         continue
       fi
       throttle_reasons[idx]="$(summarize_gpu_throttle_reasons "${sw_power_cap}" "${hw_thermal}" "${sw_thermal}" "${hw_slow}" "${sync_boost}" "${app_clocks}" "${display_clocks}" "${idle_reason}" "${active_reason}")"
-    done <<< "${gpu_throttle_output}"
+    done <<<"${gpu_throttle_output}"
   fi
 
   printf '['
@@ -266,6 +265,6 @@ build_nvidia_gpu_json() {
       "$(json_escape "${throttle_reason}")" \
       "$(json_escape "${pstate}")"
     comma=','
-  done <<< "${gpu_output}"
+  done <<<"${gpu_output}"
   printf ']'
 }

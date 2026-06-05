@@ -77,7 +77,7 @@ read_first_existing_file() {
   local path line
   for path in "$@"; do
     if [ -r "${path}" ]; then
-      IFS= read -r line < "${path}" || line=''
+      IFS= read -r line <"${path}" || line=''
       trim "${line}"
       return
     fi
@@ -100,7 +100,7 @@ read_sysfs_uevent_field() {
       trim "${value}"
       return
     fi
-  done < "${path}"
+  done <"${path}"
 
   printf ''
 }
@@ -367,12 +367,12 @@ record_xpu_smi_bdfs_from_discovery() {
 
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in
-      ''|Device\ ID,*)
+      '' | Device\ ID,*)
         continue
         ;;
     esac
 
-    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<< "${line}"
+    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<<"${line}"
     device_id="$(normalize_int "$(csv_clean_field "${device_id}")")"
     if [ "${device_id}" -lt 0 ]; then
       continue
@@ -381,13 +381,13 @@ record_xpu_smi_bdfs_from_discovery() {
     if [ -n "${bdf}" ]; then
       xpu_smi_bdfs+=("${bdf}")
     fi
-  done <<< "${discovery}"
+  done <<<"${discovery}"
 }
 
 build_xpu_smi_gpu_json() {
   local discovery line comma='' index
   local device_id name uuid bdf mem_total_text mem_total
-  local stats stats_line timestamp stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock
+  local stats stats_line _timestamp _stat_device_id util power_draw sm_clock temp mem_util mem_used compute_util render_util decoder_util encoder_util throttle video_clock
   local sysfs_idx sysfs_temp sysfs_power_limit
 
   discovery="${1:-}"
@@ -403,12 +403,12 @@ build_xpu_smi_gpu_json() {
   printf '['
   while IFS= read -r line || [ -n "${line}" ]; do
     case "${line}" in
-      ''|Device\ ID,*)
+      '' | Device\ ID,*)
         continue
         ;;
     esac
 
-    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<< "${line}"
+    IFS=',' read -r device_id name uuid bdf mem_total_text _ <<<"${line}"
     device_id="$(normalize_int "$(csv_clean_field "${device_id}")")"
     if [ "${device_id}" -lt 0 ]; then
       continue
@@ -438,7 +438,7 @@ build_xpu_smi_gpu_json() {
     stats="$(read_xpu_smi_stats_dump "${device_id}")"
     stats_line="$(printf '%s\n' "${stats}" | awk 'NF && $1 !~ /^Timestamp/ { line=$0 } END { print line }')"
     if [ -n "${stats_line}" ]; then
-      IFS=',' read -r timestamp stat_device_id util power_draw sm_clock temp mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<< "${stats_line}"
+      IFS=',' read -r _timestamp _stat_device_id util power_draw sm_clock temp mem_used compute_util render_util decoder_util encoder_util throttle video_clock _ <<<"${stats_line}"
       util="$(round_float_to_int "${util}")"
       power_draw="$(normalize_float "${power_draw}")"
       sm_clock="$(normalize_int "${sm_clock}")"
@@ -495,7 +495,7 @@ build_xpu_smi_gpu_json() {
       "$(json_escape "${throttle}")"
     comma=','
     index=$((index + 1))
-  done <<< "${discovery}"
+  done <<<"${discovery}"
   printf ']'
 }
 

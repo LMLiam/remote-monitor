@@ -13,7 +13,7 @@ Terminal UI for monitoring a remote Linux host over SSH.
 - SSH reconnects with keepalive and control socket reuse.
 - Rolling history for load, pressure, memory, disks, network, GPU, and temperatures.
 - Linux host sampling from `/proc`, `/sys`, `df`, `ps`, `awk`, and optional GPU tooling.
-- Strict native Go CI with `gofmt`, `go vet`, `go test`, `golangci-lint`, and compile checks.
+- Strict CI with `gofmt`, `go vet`, `go test`, `golangci-lint`, ShellCheck, shfmt, and compile checks.
 
 ## Requirements
 

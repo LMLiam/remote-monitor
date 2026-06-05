@@ -31,10 +31,10 @@ for tag in "$@"; do
   minor=$((10#${BASH_REMATCH[2]}))
   patch=$((10#${BASH_REMATCH[3]}))
 
-  if (( found == 0 ||
-    major > best_major ||
-    (major == best_major && minor > best_minor) ||
-    (major == best_major && minor == best_minor && patch > best_patch) )); then
+  if ((found == 0 || \
+    major > best_major || (\
+    major == best_major && minor > best_minor) || (\
+    major == best_major && minor == best_minor && patch > best_patch))); then
     found=1
     best_major="${major}"
     best_minor="${minor}"
