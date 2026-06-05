@@ -13,6 +13,7 @@ intel_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 amd_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 power_supply_class_path="${REMOTE_MONITOR_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 filesystem_refresh_samples="$(refresh_samples_for_seconds "${filesystem_refresh_seconds}")"
+network_refresh_samples="${filesystem_refresh_samples}"
 sample_index=0
 root_usage_cache=''
 filesystems_json_cache=''
@@ -44,16 +45,7 @@ prev_cpu_system=()
 prev_cpu_iowait=()
 prev_cpu_steal=()
 tracked_net_ifaces=()
-prev_net_rx=()
-prev_net_tx=()
-prev_net_rx_packets=()
-prev_net_tx_packets=()
-prev_net_rx_drops=()
-prev_net_rx_errors=()
-prev_net_rx_overruns=()
-prev_net_tx_drops=()
-prev_net_tx_errors=()
-prev_net_tx_overruns=()
+prev_net_sample=()
 prev_disk_sectors_read='-1'
 prev_disk_sectors_written='-1'
 prev_disk_io_ms='-1'
@@ -79,10 +71,7 @@ prev_cpu_system=("${cpu_system[@]}")
 prev_cpu_iowait=("${cpu_iowait[@]}")
 prev_cpu_steal=("${cpu_steal[@]}")
 discover_net_ifaces
-
-for ((i = 0; i < ${#tracked_net_ifaces[@]}; i++)); do
-  IFS='|' read -r prev_net_rx[i] prev_net_tx[i] prev_net_rx_packets[i] prev_net_tx_packets[i] prev_net_rx_drops[i] prev_net_rx_errors[i] prev_net_rx_overruns[i] prev_net_tx_drops[i] prev_net_tx_errors[i] prev_net_tx_overruns[i] < <(read_net_sample "${tracked_net_ifaces[i]}")
-done
+prime_net_baselines
 
 IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
 IFS='|' read -r prev_swap_in_pages prev_swap_out_pages < <(read_swap_io_sample)

@@ -47,6 +47,7 @@ const (
 	readWSLHostMetricsLine                  = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
 	applyWSLHostMetricsLine                 = `apply_wsl_host_metrics`
 	allHostMetricsPrintLine                 = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
+	buildNetJSONLine                        = `build_net_json`
 )
 
 func TestRemoteSamplerMatchesAssembledModules(t *testing.T) {
@@ -80,6 +81,69 @@ func TestRemoteSamplerPressureModuleCanBeSourcedIndependently(t *testing.T) {
 	got := runSamplerModuleSnippet(t, []string{samplerJSONModule, "pressure.sh"}, "read_pressure_avg10 "+shellQuote(pressureFile), nil)
 	if got != "1.23|0.45" {
 		t.Fatalf("expected pressure module to parse avg10 values, got %q", got)
+	}
+}
+
+func TestRemoteSamplerRefreshesNetworkInterfacesDuringSampling(t *testing.T) {
+	t.Parallel()
+
+	awkPath, err := exec.LookPath("awk")
+	if err != nil {
+		t.Skip("awk is required to fake sampler network discovery")
+	}
+
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "ip"), "#!/bin/sh\nexit 0\n")
+	writeExecutable(t, filepath.Join(binDir, "awk"), `#!/usr/bin/env bash
+last="${@: -1}"
+if [ "${last}" = "/proc/net/dev" ]; then
+  tr ',' '\n' <<< "${REMOTE_MONITOR_TEST_NET_IFACES:-}"
+  exit 0
+fi
+exec `+shellQuote(awkPath)+` "$@"
+`)
+
+	got := parseNetworkJSONLinesForTest(t, runSamplerModuleSnippet(t, []string{"config.sh", samplerJSONModule, "cpu.sh", "network.sh"}, strings.Join([]string{
+		`sample_elapsed_ms=1000`,
+		`network_refresh_samples=2`,
+		`sample_index=0`,
+		`export REMOTE_MONITOR_TEST_NET_IFACES=eth0`,
+		`declare -A net_samples=(`,
+		`  [eth0]="100|50|10|5|0|0|0|0|0|0"`,
+		`  [wg0]="10|5|1|1|0|0|0|0|0|0"`,
+		`)`,
+		`read_net_sample() { printf '%s\n' "${net_samples[$1]:--1|-1|-1|-1|-1|-1|-1|-1|-1|-1}"; }`,
+		`read_net_speed_mbps() { printf '1000\n'; }`,
+		`discover_net_ifaces`,
+		`prime_net_baselines`,
+		`sample_index=1`,
+		`net_samples[eth0]="200|100|20|10|0|0|0|0|0|0"`,
+		buildNetJSONLine,
+		`printf '\n'`,
+		`export REMOTE_MONITOR_TEST_NET_IFACES=eth0,wg0`,
+		`sample_index=2`,
+		`net_samples[eth0]="300|150|30|15|0|0|0|0|0|0"`,
+		buildNetJSONLine,
+		`printf '\n'`,
+		`export REMOTE_MONITOR_TEST_NET_IFACES=wg0`,
+		`sample_index=4`,
+		`net_samples[wg0]="20|15|2|2|0|0|0|0|0|0"`,
+		buildNetJSONLine,
+	}, "\n"), map[string]string{
+		testPathEnv: prependTestPath(binDir),
+	}))
+
+	if len(got) != 3 {
+		t.Fatalf("expected three network samples, got %#v", got)
+	}
+	if len(got[0]) != 1 || got[0][0].Iface != "eth0" || got[0][0].RXBps != 100 || got[0][0].TXBps != 50 {
+		t.Fatalf("unexpected initial network sample: %#v", got[0])
+	}
+	if len(got[1]) != 2 || got[1][0].Iface != "eth0" || got[1][0].RXBps != 100 || got[1][1].Iface != "wg0" || got[1][1].RXBps != -1 {
+		t.Fatalf("expected rediscovered wg0 with eth0 state preserved, got %#v", got[1])
+	}
+	if len(got[2]) != 1 || got[2][0].Iface != "wg0" || got[2][0].RXBps != 10 || got[2][0].TXBps != 10 {
+		t.Fatalf("expected removed eth0 to stop emitting and wg0 state to continue, got %#v", got[2])
 	}
 }
 
@@ -1070,6 +1134,25 @@ func parseGPUJSONForTest(t *testing.T, raw string) []core.GPUStat {
 	}
 
 	return got
+}
+
+func parseNetworkJSONLinesForTest(t *testing.T, raw string) [][]core.NetStat {
+	t.Helper()
+
+	var samples [][]core.NetStat
+	for line := range strings.SplitSeq(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		var sample []core.NetStat
+		if err := json.Unmarshal([]byte(line), &sample); err != nil {
+			t.Fatalf("parse network JSON %q: %v", line, err)
+		}
+		samples = append(samples, sample)
+	}
+
+	return samples
 }
 
 func asciiControlsForTest() string {
