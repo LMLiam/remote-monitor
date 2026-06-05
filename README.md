@@ -134,6 +134,16 @@ against the process command name and full command line exposed by `ps`; the
 displayed process column remains the command name. Filtering is applied before
 the `-process-count` row limit.
 
+### Controls
+
+When the live TUI is active:
+
+| Action | Controls |
+| --- | --- |
+| Quit | `q` or `Ctrl-C` |
+| Scroll | Arrow keys or mouse wheel |
+| Page | `PageUp` / `PageDown` |
+
 ## Network Interface Selection
 
 By default, network collection and display preserve the sampler's current
