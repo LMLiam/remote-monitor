@@ -909,6 +909,17 @@ build_disk_json() {
   prev_disk_weighted_ms="${disk_weighted_ms}"
 }
 
+declare -A prev_net_rx=()
+declare -A prev_net_tx=()
+declare -A prev_net_rx_packets=()
+declare -A prev_net_tx_packets=()
+declare -A prev_net_rx_drops=()
+declare -A prev_net_rx_errors=()
+declare -A prev_net_rx_overruns=()
+declare -A prev_net_tx_drops=()
+declare -A prev_net_tx_errors=()
+declare -A prev_net_tx_overruns=()
+
 add_tracked_net_iface() {
   local iface="$1"
   local i
@@ -941,6 +952,91 @@ discover_net_ifaces() {
   while read -r iface; do
     add_tracked_net_iface "${iface}"
   done < <(awk -F: 'NR > 2 { gsub(/ /, "", $1); print $1 }' /proc/net/dev)
+}
+
+reset_net_baseline_for_iface() {
+  local iface="$1"
+
+  prev_net_rx["${iface}"]='-1'
+  prev_net_tx["${iface}"]='-1'
+  prev_net_rx_packets["${iface}"]='-1'
+  prev_net_tx_packets["${iface}"]='-1'
+  prev_net_rx_drops["${iface}"]='-1'
+  prev_net_rx_errors["${iface}"]='-1'
+  prev_net_rx_overruns["${iface}"]='-1'
+  prev_net_tx_drops["${iface}"]='-1'
+  prev_net_tx_errors["${iface}"]='-1'
+  prev_net_tx_overruns["${iface}"]='-1'
+}
+
+unset_net_baseline_for_iface() {
+  local iface="$1"
+
+  unset "prev_net_rx[${iface}]"
+  unset "prev_net_tx[${iface}]"
+  unset "prev_net_rx_packets[${iface}]"
+  unset "prev_net_tx_packets[${iface}]"
+  unset "prev_net_rx_drops[${iface}]"
+  unset "prev_net_rx_errors[${iface}]"
+  unset "prev_net_rx_overruns[${iface}]"
+  unset "prev_net_tx_drops[${iface}]"
+  unset "prev_net_tx_errors[${iface}]"
+  unset "prev_net_tx_overruns[${iface}]"
+}
+
+prime_net_baselines() {
+  local iface
+
+  for iface in "${tracked_net_ifaces[@]}"; do
+    IFS='|' read -r prev_net_rx["${iface}"] prev_net_tx["${iface}"] prev_net_rx_packets["${iface}"] prev_net_tx_packets["${iface}"] prev_net_rx_drops["${iface}"] prev_net_rx_errors["${iface}"] prev_net_rx_overruns["${iface}"] prev_net_tx_drops["${iface}"] prev_net_tx_errors["${iface}"] prev_net_tx_overruns["${iface}"] < <(read_net_sample "${iface}")
+  done
+}
+
+refresh_tracked_net_ifaces() {
+  local iface
+  local old_ifaces=("${tracked_net_ifaces[@]}")
+  declare -A was_tracked=()
+  declare -A still_tracked=()
+
+  for iface in "${old_ifaces[@]}"; do
+    was_tracked["${iface}"]=1
+  done
+
+  discover_net_ifaces
+
+  for iface in "${tracked_net_ifaces[@]}"; do
+    still_tracked["${iface}"]=1
+    if [ -z "${was_tracked[${iface}]:-}" ]; then
+      reset_net_baseline_for_iface "${iface}"
+    fi
+  done
+
+  for iface in "${!prev_net_rx[@]}"; do
+    if [ -z "${still_tracked[${iface}]:-}" ]; then
+      unset_net_baseline_for_iface "${iface}"
+    fi
+  done
+}
+
+network_refresh_sample_count() {
+  local samples="${network_refresh_samples:-${filesystem_refresh_samples:-1}}"
+
+  case "${samples}" in
+    ''|*[!0-9]*|0)
+      samples=1
+      ;;
+  esac
+
+  printf '%s\n' "${samples}"
+}
+
+refresh_net_ifaces_if_needed() {
+  local refresh_samples
+
+  refresh_samples="$(network_refresh_sample_count)"
+  if [ "${sample_index:-0}" -gt 0 ] && [ $((sample_index % refresh_samples)) -eq 0 ]; then
+    refresh_tracked_net_ifaces
+  fi
 }
 
 read_net_sample() {
@@ -985,7 +1081,7 @@ read_net_speed_mbps() {
 }
 
 build_net_json() {
-  local i
+  local iface
   local current_rx
   local current_tx
   local current_rx_packets current_tx_packets
@@ -1004,15 +1100,16 @@ build_net_json() {
   local comma=''
   local elapsed_ms
 
+  refresh_net_ifaces_if_needed
   elapsed_ms="$(elapsed_ms_or_default)"
 
   printf '['
-  for ((i = 0; i < ${#tracked_net_ifaces[@]}; i++)); do
-    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns < <(read_net_sample "${tracked_net_ifaces[i]}")
-    speed_mbps="$(read_net_speed_mbps "${tracked_net_ifaces[i]}")"
+  for iface in "${tracked_net_ifaces[@]}"; do
+    IFS='|' read -r current_rx current_tx current_rx_packets current_tx_packets current_rx_drops current_rx_errors current_rx_overruns current_tx_drops current_tx_errors current_tx_overruns < <(read_net_sample "${iface}")
+    speed_mbps="$(read_net_speed_mbps "${iface}")"
 
-    if [ "${current_rx}" -ge 0 ] && [ "${prev_net_rx[i]:--1}" -ge 0 ]; then
-      rx_bps=$((((current_rx - prev_net_rx[i]) * 1000) / elapsed_ms))
+    if [ "${current_rx}" -ge 0 ] && [ "${prev_net_rx[${iface}]:--1}" -ge 0 ]; then
+      rx_bps=$((((current_rx - prev_net_rx[${iface}]) * 1000) / elapsed_ms))
       if [ "${rx_bps}" -lt 0 ]; then
         rx_bps=0
       fi
@@ -1020,8 +1117,8 @@ build_net_json() {
       rx_bps='-1'
     fi
 
-    if [ "${current_tx}" -ge 0 ] && [ "${prev_net_tx[i]:--1}" -ge 0 ]; then
-      tx_bps=$((((current_tx - prev_net_tx[i]) * 1000) / elapsed_ms))
+    if [ "${current_tx}" -ge 0 ] && [ "${prev_net_tx[${iface}]:--1}" -ge 0 ]; then
+      tx_bps=$((((current_tx - prev_net_tx[${iface}]) * 1000) / elapsed_ms))
       if [ "${tx_bps}" -lt 0 ]; then
         tx_bps=0
       fi
@@ -1029,8 +1126,8 @@ build_net_json() {
       tx_bps='-1'
     fi
 
-    if [ "${current_rx_packets}" -ge 0 ] && [ "${prev_net_rx_packets[i]:--1}" -ge 0 ]; then
-      rx_pps=$((((current_rx_packets - prev_net_rx_packets[i]) * 1000) / elapsed_ms))
+    if [ "${current_rx_packets}" -ge 0 ] && [ "${prev_net_rx_packets[${iface}]:--1}" -ge 0 ]; then
+      rx_pps=$((((current_rx_packets - prev_net_rx_packets[${iface}]) * 1000) / elapsed_ms))
       if [ "${rx_pps}" -lt 0 ]; then
         rx_pps=0
       fi
@@ -1038,8 +1135,8 @@ build_net_json() {
       rx_pps='-1'
     fi
 
-    if [ "${current_tx_packets}" -ge 0 ] && [ "${prev_net_tx_packets[i]:--1}" -ge 0 ]; then
-      tx_pps=$((((current_tx_packets - prev_net_tx_packets[i]) * 1000) / elapsed_ms))
+    if [ "${current_tx_packets}" -ge 0 ] && [ "${prev_net_tx_packets[${iface}]:--1}" -ge 0 ]; then
+      tx_pps=$((((current_tx_packets - prev_net_tx_packets[${iface}]) * 1000) / elapsed_ms))
       if [ "${tx_pps}" -lt 0 ]; then
         tx_pps=0
       fi
@@ -1047,8 +1144,8 @@ build_net_json() {
       tx_pps='-1'
     fi
 
-    if [ "${current_rx_drops}" -ge 0 ] && [ "${prev_net_rx_drops[i]:--1}" -ge 0 ]; then
-      rx_drops=$((current_rx_drops - prev_net_rx_drops[i]))
+    if [ "${current_rx_drops}" -ge 0 ] && [ "${prev_net_rx_drops[${iface}]:--1}" -ge 0 ]; then
+      rx_drops=$((current_rx_drops - prev_net_rx_drops[${iface}]))
       if [ "${rx_drops}" -lt 0 ]; then
         rx_drops=0
       fi
@@ -1056,8 +1153,8 @@ build_net_json() {
       rx_drops='-1'
     fi
 
-    if [ "${current_rx_errors}" -ge 0 ] && [ "${prev_net_rx_errors[i]:--1}" -ge 0 ]; then
-      rx_errors=$((current_rx_errors - prev_net_rx_errors[i]))
+    if [ "${current_rx_errors}" -ge 0 ] && [ "${prev_net_rx_errors[${iface}]:--1}" -ge 0 ]; then
+      rx_errors=$((current_rx_errors - prev_net_rx_errors[${iface}]))
       if [ "${rx_errors}" -lt 0 ]; then
         rx_errors=0
       fi
@@ -1065,8 +1162,8 @@ build_net_json() {
       rx_errors='-1'
     fi
 
-    if [ "${current_rx_overruns}" -ge 0 ] && [ "${prev_net_rx_overruns[i]:--1}" -ge 0 ]; then
-      rx_overruns=$((current_rx_overruns - prev_net_rx_overruns[i]))
+    if [ "${current_rx_overruns}" -ge 0 ] && [ "${prev_net_rx_overruns[${iface}]:--1}" -ge 0 ]; then
+      rx_overruns=$((current_rx_overruns - prev_net_rx_overruns[${iface}]))
       if [ "${rx_overruns}" -lt 0 ]; then
         rx_overruns=0
       fi
@@ -1074,8 +1171,8 @@ build_net_json() {
       rx_overruns='-1'
     fi
 
-    if [ "${current_tx_drops}" -ge 0 ] && [ "${prev_net_tx_drops[i]:--1}" -ge 0 ]; then
-      tx_drops=$((current_tx_drops - prev_net_tx_drops[i]))
+    if [ "${current_tx_drops}" -ge 0 ] && [ "${prev_net_tx_drops[${iface}]:--1}" -ge 0 ]; then
+      tx_drops=$((current_tx_drops - prev_net_tx_drops[${iface}]))
       if [ "${tx_drops}" -lt 0 ]; then
         tx_drops=0
       fi
@@ -1083,8 +1180,8 @@ build_net_json() {
       tx_drops='-1'
     fi
 
-    if [ "${current_tx_errors}" -ge 0 ] && [ "${prev_net_tx_errors[i]:--1}" -ge 0 ]; then
-      tx_errors=$((current_tx_errors - prev_net_tx_errors[i]))
+    if [ "${current_tx_errors}" -ge 0 ] && [ "${prev_net_tx_errors[${iface}]:--1}" -ge 0 ]; then
+      tx_errors=$((current_tx_errors - prev_net_tx_errors[${iface}]))
       if [ "${tx_errors}" -lt 0 ]; then
         tx_errors=0
       fi
@@ -1092,8 +1189,8 @@ build_net_json() {
       tx_errors='-1'
     fi
 
-    if [ "${current_tx_overruns}" -ge 0 ] && [ "${prev_net_tx_overruns[i]:--1}" -ge 0 ]; then
-      tx_overruns=$((current_tx_overruns - prev_net_tx_overruns[i]))
+    if [ "${current_tx_overruns}" -ge 0 ] && [ "${prev_net_tx_overruns[${iface}]:--1}" -ge 0 ]; then
+      tx_overruns=$((current_tx_overruns - prev_net_tx_overruns[${iface}]))
       if [ "${tx_overruns}" -lt 0 ]; then
         tx_overruns=0
       fi
@@ -1103,7 +1200,7 @@ build_net_json() {
 
     printf '%s{"iface":"%s","rx_bps":%s,"tx_bps":%s,"rx_pps":%s,"tx_pps":%s,"speed_mbps":%s,"rx_drops":%s,"rx_errors":%s,"rx_overruns":%s,"tx_drops":%s,"tx_errors":%s,"tx_overruns":%s}' \
       "${comma}" \
-      "$(json_escape "${tracked_net_ifaces[i]}")" \
+      "$(json_escape "${iface}")" \
       "${rx_bps}" \
       "${tx_bps}" \
       "${rx_pps}" \
@@ -1116,16 +1213,16 @@ build_net_json() {
       "${tx_errors}" \
       "${tx_overruns}"
     comma=','
-    prev_net_rx[i]="${current_rx}"
-    prev_net_tx[i]="${current_tx}"
-    prev_net_rx_packets[i]="${current_rx_packets}"
-    prev_net_tx_packets[i]="${current_tx_packets}"
-    prev_net_rx_drops[i]="${current_rx_drops}"
-    prev_net_rx_errors[i]="${current_rx_errors}"
-    prev_net_rx_overruns[i]="${current_rx_overruns}"
-    prev_net_tx_drops[i]="${current_tx_drops}"
-    prev_net_tx_errors[i]="${current_tx_errors}"
-    prev_net_tx_overruns[i]="${current_tx_overruns}"
+    prev_net_rx["${iface}"]="${current_rx}"
+    prev_net_tx["${iface}"]="${current_tx}"
+    prev_net_rx_packets["${iface}"]="${current_rx_packets}"
+    prev_net_tx_packets["${iface}"]="${current_tx_packets}"
+    prev_net_rx_drops["${iface}"]="${current_rx_drops}"
+    prev_net_rx_errors["${iface}"]="${current_rx_errors}"
+    prev_net_rx_overruns["${iface}"]="${current_rx_overruns}"
+    prev_net_tx_drops["${iface}"]="${current_tx_drops}"
+    prev_net_tx_errors["${iface}"]="${current_tx_errors}"
+    prev_net_tx_overruns["${iface}"]="${current_tx_overruns}"
   done
   printf ']'
 }
@@ -2967,6 +3064,7 @@ intel_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 amd_drm_class_path="${REMOTE_MONITOR_DRM_CLASS_DIR:-/sys/class/drm}"
 power_supply_class_path="${REMOTE_MONITOR_POWER_SUPPLY_DIR:-/sys/class/power_supply}"
 filesystem_refresh_samples="$(refresh_samples_for_seconds "${filesystem_refresh_seconds}")"
+network_refresh_samples="${filesystem_refresh_samples}"
 sample_index=0
 root_usage_cache=''
 filesystems_json_cache=''
@@ -3033,10 +3131,7 @@ prev_cpu_system=("${cpu_system[@]}")
 prev_cpu_iowait=("${cpu_iowait[@]}")
 prev_cpu_steal=("${cpu_steal[@]}")
 discover_net_ifaces
-
-for ((i = 0; i < ${#tracked_net_ifaces[@]}; i++)); do
-  IFS='|' read -r prev_net_rx[i] prev_net_tx[i] prev_net_rx_packets[i] prev_net_tx_packets[i] prev_net_rx_drops[i] prev_net_rx_errors[i] prev_net_rx_overruns[i] prev_net_tx_drops[i] prev_net_tx_errors[i] prev_net_tx_overruns[i] < <(read_net_sample "${tracked_net_ifaces[i]}")
-done
+prime_net_baselines
 
 IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
 IFS='|' read -r prev_swap_in_pages prev_swap_out_pages < <(read_swap_io_sample)
