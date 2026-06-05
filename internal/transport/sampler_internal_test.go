@@ -45,6 +45,7 @@ const (
 	readWSLHostMetricsLine                  = `wsl_host_metrics_json="$(read_wsl_windows_host_metrics_json)"`
 	applyWSLHostMetricsLine                 = `apply_wsl_host_metrics`
 	allHostMetricsPrintLine                 = `printf '%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s' "${remote_cpu_name}" "${remote_cpu_cores}" "${cpu_freq_mhz}" "${cpu_max_freq_mhz}" "${cpu_temp_c}" "${ram_used}" "${ram_total}" "${ram_available}" "${ram_free}" "${ram_cache}" "${ram_buffers}" "${ram_reclaimable}" "${ram_shared}" "${mem_pressure_some}" "${mem_pressure_full}"`
+	buildNetJSONLine                        = `build_net_json`
 )
 
 func TestRemoteSamplerMatchesAssembledModules(t *testing.T) {
@@ -115,17 +116,17 @@ exec `+shellQuote(awkPath)+` "$@"
 		`prime_net_baselines`,
 		`sample_index=1`,
 		`net_samples[eth0]="200|100|20|10|0|0|0|0|0|0"`,
-		`build_net_json`,
+		buildNetJSONLine,
 		`printf '\n'`,
 		`export REMOTE_MONITOR_TEST_NET_IFACES=eth0,wg0`,
 		`sample_index=2`,
 		`net_samples[eth0]="300|150|30|15|0|0|0|0|0|0"`,
-		`build_net_json`,
+		buildNetJSONLine,
 		`printf '\n'`,
 		`export REMOTE_MONITOR_TEST_NET_IFACES=wg0`,
 		`sample_index=4`,
 		`net_samples[wg0]="20|15|2|2|0|0|0|0|0|0"`,
-		`build_net_json`,
+		buildNetJSONLine,
 	}, "\n"), map[string]string{
 		testPathEnv: prependTestPath(binDir),
 	}))
@@ -1092,7 +1093,7 @@ func parseNetworkJSONLinesForTest(t *testing.T, raw string) [][]core.NetStat {
 	t.Helper()
 
 	var samples [][]core.NetStat
-	for _, line := range strings.Split(raw, "\n") {
+	for line := range strings.SplitSeq(raw, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
