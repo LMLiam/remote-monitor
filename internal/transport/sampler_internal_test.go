@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	core "github.com/lmliam/remote-monitor/internal/core"
+	"github.com/lmliam/remote-monitor/internal/parser"
 )
 
 const (
@@ -198,6 +199,29 @@ func TestRemoteSamplerEscapesJSONControlCharacters(t *testing.T) {
 	parsedWant := "cpu" + asciiControlsForTest() + "\\\"name"
 	if parsed.Value != parsedWant {
 		t.Fatalf("parsed escaped value mismatch\nwant %q\n got %q", parsedWant, parsed.Value)
+	}
+}
+
+func TestRemoteSamplerEscapedControlCharactersParseAsSample(t *testing.T) {
+	t.Parallel()
+
+	line := runSamplerModuleSnippet(t, []string{samplerJSONModule}, fmt.Sprintf(strings.Join([]string{
+		`cpu_name="$(json_escape %s)"`,
+		`command="$(json_escape %s)"`,
+		`printf '{"version":1,"cpu_name":"%%s","top_processes":[{"pid":4242,"command":"%%s","cpu_percent":12,"rss_mib":64}]}' "${cpu_name}" "${command}"`,
+	}, "\n"), bashANSIControlLiteralForTest(), bashANSIControlLiteralForTest()), nil)
+
+	var p parser.Parser
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected sampler-produced escaped controls to parse, line: %q, error: %v", line, p.LastError())
+	}
+	want := "cpu" + asciiControlsForTest() + "\\\"name"
+	if got.CPUName != want {
+		t.Fatalf("cpu name round trip mismatch\nwant %q\n got %q", want, got.CPUName)
+	}
+	if len(got.TopProcesses) != 1 || got.TopProcesses[0].Command != want {
+		t.Fatalf("process command round trip mismatch\nwant %q\n got %#v", want, got.TopProcesses)
 	}
 }
 
