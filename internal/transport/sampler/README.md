@@ -32,10 +32,19 @@ without running the long-lived sampler loop.
 
 Run the shell checks used by CI with:
 
-```sh
+```bash
 go run mvdan.cc/sh/v3/cmd/shfmt@v3.13.1 -i 2 -ci -d .github/scripts internal/transport/sampler internal/transport/sampler.sh tests/e2e/ssh-target
-shellcheck -S warning -s bash .github/scripts/*.sh tests/e2e/ssh-target/*.sh internal/transport/sampler.sh
-shellcheck -S warning -s bash -e SC2034,SC2154 internal/transport/sampler/*.sh
+shellcheck -S warning -s bash .github/scripts/*.sh tests/e2e/ssh-target/*.sh internal/transport/sampler/assemble.sh internal/transport/sampler.sh
+sampler_modules=()
+while IFS= read -r module || [ -n "${module}" ]; do
+  case "${module}" in
+    '' | '#'*)
+      continue
+      ;;
+  esac
+  sampler_modules+=("internal/transport/sampler/${module}")
+done <internal/transport/sampler/manifest.txt
+shellcheck -S warning -s bash -e SC2034,SC2154 "${sampler_modules[@]}"
 ```
 
 The sampler module ShellCheck command disables `SC2034` and `SC2154` only for
