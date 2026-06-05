@@ -268,6 +268,8 @@ func TestRemoteSamplerOmitsMalformedProcessRowsFromJSON(t *testing.T) {
 cat <<'PS'
 bad-row
 301 nope 2048
+303 nope 2048 node
+304 2.4 nope ruby
 302 11.4 4096 python worker.py
 PS
 `)

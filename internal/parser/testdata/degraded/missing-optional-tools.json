@@ -93,5 +93,14 @@
     }
   ],
   "gpu_processes": [],
-  "gpus": []
+  "gpus": [],
+  "power": {
+    "external_power_online": -1,
+    "battery_percent": -1,
+    "battery_status": "",
+    "power_draw_w": -1,
+    "ups_present": 0,
+    "source_name": "",
+    "supplies": []
+  }
 }

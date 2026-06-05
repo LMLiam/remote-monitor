@@ -412,8 +412,8 @@ func TestParserBuildsSamplesFromDegradedHostFixtures(t *testing.T) {
 				if got.CPUTempC != -1 || got.CPUPressureSomeAvg10 != -1 || got.MemPressureFullAvg10 != -1 {
 					t.Fatalf("expected unavailable optional metrics to use sentinels, got temp=%d cpuPressure=%f memPressure=%f", got.CPUTempC, got.CPUPressureSomeAvg10, got.MemPressureFullAvg10)
 				}
-				if got.ExternalPowerOnline != -1 || got.PowerDrawWatts != -1 || got.UPSPresent != -1 {
-					t.Fatalf("expected missing power object to keep parser sentinels, got %#v", got)
+				if got.ExternalPowerOnline != -1 || got.BatteryPercent != -1 || got.PowerDrawWatts != -1 || got.UPSPresent != 0 || len(got.PowerSupplies) != 0 {
+					t.Fatalf("expected missing power supplies to use sampler sentinels, got %#v", got)
 				}
 			},
 		},
