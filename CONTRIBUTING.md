@@ -15,24 +15,25 @@ Use Go 1.26 or newer. The project intentionally uses native Go tooling and `gola
 
 ```sh
 go mod download
-bash .github/scripts/install-git-hooks.sh
+make setup
 ```
 
 ## Checks
 
-Run these before opening a pull request:
+Run the full local check gate before opening a pull request:
 
 ```sh
-unformatted="$(gofmt -l ./cmd ./internal ./tests)"
-test -z "$unformatted" || { echo "$unformatted"; exit 1; }
-go vet -tags=integration ./...
-go test -tags=integration ./...
-golangci-lint run --build-tags=integration
-go build -o remote-monitor ./cmd/remote-monitor
+make check
 ```
 
-These mirror the CI checks in `.github/workflows/build.yml`. The integration-tagged test run
-includes the SSH end-to-end test, which self-skips when Docker is unavailable.
+`make check` mirrors the CI checks in `.github/workflows/build.yml`: Go formatting,
+shell formatting, ShellCheck, workflow helper script tests, `go vet`,
+integration-tagged tests, `golangci-lint`, and build. The ShellCheck target uses
+Docker to run CI's pinned image. The integration-tagged test run includes the SSH
+end-to-end test, which self-skips when Docker is unavailable.
+
+Individual targets such as `make fmt`, `make shfmt`, `make shellcheck`, `make scripts`,
+`make test`, and `make lint` are available for targeted checks.
 
 ## Code Style
 
