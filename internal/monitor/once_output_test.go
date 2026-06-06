@@ -213,6 +213,64 @@ func TestRunOnceWritesTextWithSelectedNetworkSummary(t *testing.T) {
 	}
 }
 
+func TestRunOnceWritesTextWithMultipleDiskSummary(t *testing.T) {
+	t.Parallel()
+
+	var out bytes.Buffer
+	firstSample := outputTestSample()
+	firstSample.Disks = []core.DiskStat{
+		{
+			Device:            "sdd",
+			ReadBps:           1048576,
+			WriteBps:          524288,
+			ReadMergedPerSec:  0,
+			WriteMergedPerSec: 0,
+			Util:              3,
+			AwaitMS:           1.37,
+			QueueDepth:        0.21,
+			Inflight:          3,
+		},
+		{
+			Device:            "nvme0n1",
+			ReadBps:           4096,
+			WriteBps:          8192,
+			ReadMergedPerSec:  0,
+			WriteMergedPerSec: 0,
+			Util:              63,
+			AwaitMS:           2.4,
+			QueueDepth:        0.4,
+			Inflight:          1,
+		},
+	}
+
+	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
+		cfg.Once = true
+		cfg.OutputMode = core.OutputModeText
+	}), runDependencies{
+		stdout:      &out,
+		stdoutIsTTY: func() bool { return true },
+		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
+			defer close(sampleCh)
+			defer close(eventCh)
+			sampleCh <- firstSample
+		},
+	})
+	if err != nil {
+		t.Fatalf("run returned error: %v", err)
+	}
+
+	got := out.String()
+	if !strings.Contains(got, "DISK nvme0n1 R 4.0 KiB/s W 8.0 KiB/s") {
+		t.Fatalf("text snapshot missing nvme disk summary: %q", got)
+	}
+	if !strings.Contains(got, "sdd R 1.0 MiB/s W 512.0 KiB/s") {
+		t.Fatalf("text snapshot missing root disk summary: %q", got)
+	}
+	if count := strings.Count(got, "\n"); count != 1 {
+		t.Fatalf("text snapshot rendered %d lines in %q", count, got)
+	}
+}
+
 func TestRunOnceReturnsErrorBeforeFirstSample(t *testing.T) {
 	t.Parallel()
 

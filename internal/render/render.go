@@ -39,11 +39,30 @@ func NonInteractive(state core.AppState) string {
 		percentDisplay(metrics.OverallVRAMPct(s)),
 		tempDisplay(metrics.OverallTempValue(s)),
 	)
+	if diskText := diskSummaryText(s); diskText != "" {
+		line += " | DISK " + diskText
+	}
 	if powerText := PowerSummaryText(s); powerText != "" {
 		line += " | Power " + powerText
 	}
 
 	return line
+}
+
+func diskSummaryText(s core.Sample) string {
+	if len(s.Disks) <= 1 {
+		return ""
+	}
+
+	parts := make([]string, 0, len(s.Disks))
+	for _, disk := range sortedDiskStats(s.Disks) {
+		if disk.ReadBps < 0 && disk.WriteBps < 0 {
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s R %s W %s", fallbackString(disk.Device, TextNA), formatBps(disk.ReadBps), formatBps(disk.WriteBps)))
+	}
+
+	return strings.Join(parts, "; ")
 }
 
 // TTYFrame returns a viewport frame wrapped in terminal repaint escapes.
