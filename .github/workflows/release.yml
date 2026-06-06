@@ -40,7 +40,7 @@ jobs:
       sha: ${{ steps.main.outputs.sha }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: main
           fetch-depth: 0
@@ -114,7 +114,7 @@ jobs:
       RELEASE_TAG: ${{ needs.prepare-release.outputs.tag || github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ needs.prepare-release.outputs.tag || github.ref_name }}
           fetch-depth: 0
@@ -155,7 +155,7 @@ jobs:
           echo "checksums=$checksums" >> "$GITHUB_OUTPUT"
 
       - name: Attest release artifacts
-        uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3.0.0
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-checksums: ${{ steps.release-metadata.outputs.checksums }}
 
