@@ -1,8 +1,8 @@
 # One-way wiki sync: repository wiki/ content is published to the GitHub wiki,
 # and direct GitHub wiki UI edits can be overwritten by the next sync.
 # Before the first run, initialize the wiki git backend by creating any page in
-# the GitHub UI. If GITHUB_TOKEN cannot push to the wiki in this repository, use
-# a narrowly scoped PAT or GitHub App token stored as a secret instead.
+# the GitHub UI. If GITHUB_TOKEN cannot push to the wiki in this repository, set
+# WIKI_PUSH_TOKEN to a narrowly scoped PAT or GitHub App token instead.
 
 name: Publish Wiki
 
@@ -34,11 +34,11 @@ jobs:
 
       - name: Sync wiki content
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIKI_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
 
-          wiki_url="https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
+          wiki_url="https://x-access-token:${WIKI_TOKEN}@github.com/${GITHUB_REPOSITORY}.wiki.git"
 
           # The wiki repository exists only after a maintainer creates an
           # initial page in the GitHub UI.
