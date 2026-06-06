@@ -22,6 +22,8 @@ const (
 	testPathEnv                             = "PATH"
 	testWSLDistroEnv                        = "WSL_DISTRO_NAME"
 	testWSLDistroName                       = "Ubuntu"
+	samplerConfigModule                     = "config.sh"
+	samplerCPUModule                        = "cpu.sh"
 	samplerProcessesModule                  = "processes.sh"
 	testIntelDRMClassEnv                    = "REMOTE_MONITOR_DRM_CLASS_DIR"
 	testIntelVendorFile                     = "device/vendor"
@@ -38,6 +40,8 @@ const (
 	samplerNVIDIAModule                     = "gpu_nvidia.sh"
 	samplerIntelModule                      = "gpu_intel.sh"
 	samplerAMDModule                        = "gpu_amd.sh"
+	testDiskstatsEnv                        = "REMOTE_MONITOR_DISKSTATS_FILE"
+	testBlockSysEnv                         = "REMOTE_MONITOR_BLOCK_SYS_DIR"
 	testPowerSupplyEnv                      = "REMOTE_MONITOR_POWER_SUPPLY_DIR"
 	testPowerSupplyTypeFile                 = "type"
 	testPowerSupplyCapacityFile             = "capacity"
@@ -103,7 +107,7 @@ fi
 exec `+shellQuote(awkPath)+` "$@"
 `)
 
-	got := parseNetworkJSONLinesForTest(t, runSamplerModuleSnippet(t, []string{"config.sh", samplerJSONModule, "cpu.sh", "network.sh"}, strings.Join([]string{
+	got := parseNetworkJSONLinesForTest(t, runSamplerModuleSnippet(t, []string{samplerConfigModule, samplerJSONModule, samplerCPUModule, "network.sh"}, strings.Join([]string{
 		`sample_elapsed_ms=1000`,
 		`network_refresh_samples=2`,
 		`sample_index=0`,
@@ -145,6 +149,68 @@ exec `+shellQuote(awkPath)+` "$@"
 	if len(got[2]) != 1 || got[2][0].Iface != "wg0" || got[2][0].RXBps != 10 || got[2][0].TXBps != 10 {
 		t.Fatalf("expected removed eth0 to stop emitting and wg0 state to continue, got %#v", got[2])
 	}
+}
+
+func TestRemoteSamplerBuildsDiskJSONForMountedBlockDevices(t *testing.T) {
+	t.Parallel()
+
+	diskstatsPath := filepath.Join(t.TempDir(), "diskstats")
+	writeDiskstatsFixture(t, diskstatsPath, "8 0 sda 100 5 1000 200 50 3 2000 100 1 500 800\n"+
+		"259 0 nvme0n1 200 10 4000 300 100 4 8000 180 2 700 1000\n")
+
+	blockSysDir := writeBlockDeviceFixture(t, []string{"sda", "sda1", "nvme0n1", "nvme0n1p1"})
+	binDir := t.TempDir()
+	writeExecutable(t, filepath.Join(binDir, "df"), `#!/bin/sh
+cat <<'DF'
+Filesystem     1024-blocks  Used Available Capacity Mounted on
+/dev/sda1           100000 40000     60000      40% /
+tmpfs                10000    20      9980       1% /run
+/dev/nvme0n1p1      200000 80000    120000      40% /mnt/data
+DF
+`)
+
+	got := parseDiskJSONForTest(t, runSamplerModuleSnippet(t, []string{samplerConfigModule, samplerJSONModule, samplerCPUModule, "disk.sh"}, strings.Join([]string{
+		`sample_elapsed_ms=1000`,
+		`tracked_disk_devices=()`,
+		`declare -A prev_disk_sample=()`,
+		`discover_disk_devices`,
+		`prime_disk_baselines`,
+		`cat > "${REMOTE_MONITOR_DISKSTATS_FILE}" <<'DISKSTATS'`,
+		`8 0 sda 110 9 1200 260 70 8 2300 220 4 550 950`,
+		`259 0 nvme0n1 250 12 5000 400 130 9 9000 330 1 830 1250`,
+		`DISKSTATS`,
+		`build_disks_json`,
+	}, "\n"), map[string]string{
+		testPathEnv:      prependTestPath(binDir),
+		testDiskstatsEnv: diskstatsPath,
+		testBlockSysEnv:  blockSysDir,
+	}))
+
+	if len(got) != 2 {
+		t.Fatalf("expected two mounted block devices, got %#v", got)
+	}
+	assertDiskJSONStat(t, got[0], core.DiskStat{
+		Device:            "sda",
+		ReadBps:           102400,
+		WriteBps:          153600,
+		ReadMergedPerSec:  4,
+		WriteMergedPerSec: 5,
+		Util:              5,
+		AwaitMS:           6,
+		QueueDepth:        0.15,
+		Inflight:          4,
+	})
+	assertDiskJSONStat(t, got[1], core.DiskStat{
+		Device:            "nvme0n1",
+		ReadBps:           512000,
+		WriteBps:          512000,
+		ReadMergedPerSec:  2,
+		WriteMergedPerSec: 5,
+		Util:              13,
+		AwaitMS:           3.12,
+		QueueDepth:        0.25,
+		Inflight:          1,
+	})
 }
 
 func TestRemoteSamplerBuildsLaptopPowerJSONFromSysfs(t *testing.T) {
@@ -1199,6 +1265,25 @@ func parseNetworkJSONLinesForTest(t *testing.T, raw string) [][]core.NetStat {
 	return samples
 }
 
+func parseDiskJSONForTest(t *testing.T, raw string) []core.DiskStat {
+	t.Helper()
+
+	var got []core.DiskStat
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("parse disk JSON %q: %v", raw, err)
+	}
+
+	return got
+}
+
+func assertDiskJSONStat(t *testing.T, got, want core.DiskStat) {
+	t.Helper()
+
+	if got != want {
+		t.Fatalf("disk JSON mismatch\nwant %#v\n got %#v", want, got)
+	}
+}
+
 func asciiControlsForTest() string {
 	var value strings.Builder
 	for code := 1; code < 0x20; code++ {
@@ -1316,6 +1401,34 @@ func writePowerSupplyFixture(t *testing.T, supplies map[string]map[string]string
 	return root
 }
 
+func writeBlockDeviceFixture(t *testing.T, devices []string) string {
+	t.Helper()
+
+	root := t.TempDir()
+	for _, device := range devices {
+		deviceRoot := filepath.Join(root, device)
+		if err := os.MkdirAll(deviceRoot, 0o700); err != nil {
+			t.Fatalf("create block device fixture %s: %v", device, err)
+		}
+		if device == "sda1" || strings.HasSuffix(device, "p1") {
+			path := filepath.Join(deviceRoot, "partition")
+			if err := os.WriteFile(path, []byte("1\n"), samplerScriptMode); err != nil {
+				t.Fatalf("write block device fixture %s: %v", path, err)
+			}
+		}
+	}
+
+	return root
+}
+
+func writeDiskstatsFixture(t *testing.T, path, contents string) {
+	t.Helper()
+
+	if err := os.WriteFile(path, []byte(contents), samplerScriptMode); err != nil {
+		t.Fatalf("write diskstats fixture %s: %v", path, err)
+	}
+}
+
 func runSamplerSnippet(t *testing.T, snippet string, env map[string]string) string {
 	t.Helper()
 
@@ -1407,9 +1520,9 @@ func readSamplerManifestForTest(t *testing.T) []string {
 
 func expectedSamplerModules() []string {
 	return []string{
-		"config.sh",
+		samplerConfigModule,
 		samplerJSONModule,
-		"cpu.sh",
+		samplerCPUModule,
 		"processes.sh",
 		"memory.sh",
 		"pressure.sh",

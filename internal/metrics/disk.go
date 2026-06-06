@@ -11,6 +11,27 @@ const (
 	diskQueueHistoryCap   = 8
 )
 
+// DiskUtilPercent returns the busiest sampled disk utilization.
+func DiskUtilPercent(s core.Sample) int {
+	util := s.DiskUtil
+	for _, disk := range s.Disks {
+		util = maxKnownDiskPercent(util, disk.Util)
+	}
+
+	return util
+}
+
+func maxKnownDiskPercent(a, b int) int {
+	switch {
+	case a < 0:
+		return b
+	case b < 0:
+		return a
+	default:
+		return max(a, b)
+	}
+}
+
 func diskAwaitHistoryPercent(awaitMS float64) int {
 	if awaitMS < 0 {
 		return -1
@@ -31,8 +52,17 @@ func diskQueueHistoryPercent(queueDepth float64) int {
 
 // DiskLatencyHistoryPercent folds disk await and queue depth into one history value.
 func DiskLatencyHistoryPercent(s core.Sample) int {
-	awaitPct := diskAwaitHistoryPercent(s.DiskAwaitMS)
-	queuePct := diskQueueHistoryPercent(s.DiskQueueDepth)
+	historyPct := diskLatencyPairHistoryPercent(s.DiskAwaitMS, s.DiskQueueDepth)
+	for _, disk := range s.Disks {
+		historyPct = maxKnownDiskPercent(historyPct, diskLatencyPairHistoryPercent(disk.AwaitMS, disk.QueueDepth))
+	}
+
+	return historyPct
+}
+
+func diskLatencyPairHistoryPercent(awaitMS, queueDepth float64) int {
+	awaitPct := diskAwaitHistoryPercent(awaitMS)
+	queuePct := diskQueueHistoryPercent(queueDepth)
 	switch {
 	case awaitPct < 0:
 		return queuePct

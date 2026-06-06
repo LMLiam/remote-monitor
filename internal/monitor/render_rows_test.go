@@ -271,6 +271,68 @@ func TestBuildStorageRowsSeparatesFilesystemRowsFromDiskInflight(t *testing.T) {
 	}
 }
 
+func TestBuildStorageRowsRendersMultipleDiskDevices(t *testing.T) {
+	t.Parallel()
+
+	state := testTUIState()
+	state.Current.Disks = []core.DiskStat{
+		testDiskStat(func(disk *core.DiskStat) {
+			disk.Device = testDiskDevice
+			disk.ReadBps = 4096
+			disk.WriteBps = 8192
+			disk.Util = 3
+			disk.AwaitMS = 1.37
+			disk.QueueDepth = 0.21
+			disk.Inflight = 3
+		}),
+		testDiskStat(func(disk *core.DiskStat) {
+			disk.Device = testNVMeDiskDevice
+			disk.ReadBps = 1048576
+			disk.WriteBps = 524288
+			disk.ReadMergedPerSec = 12
+			disk.WriteMergedPerSec = 7
+			disk.Util = 63
+			disk.AwaitMS = 2.4
+			disk.QueueDepth = 0.4
+			disk.Inflight = 1
+		}),
+	}
+
+	rows := render.BuildStorageRows(state, 40, false)
+	assertRowLabelExists(t, rows, "Disk IO "+testDiskDevice)
+	assertRowLabelExists(t, rows, "Disk IO "+testNVMeDiskDevice)
+	assertRowLabelExists(t, rows, "Disk Lat "+testDiskDevice)
+	assertRowLabelExists(t, rows, "Disk Lat "+testNVMeDiskDevice)
+	assertRowLabelExists(t, rows, "Disk Merge "+testNVMeDiskDevice)
+	assertRowLabelExists(t, rows, "Inflight "+testNVMeDiskDevice)
+}
+
+func TestBuildStorageRowsKeepsSingleDiskRowsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	state := testTUIState()
+	state.Current.Disks = []core.DiskStat{
+		testDiskStat(func(disk *core.DiskStat) {
+			disk.Device = testDiskDevice
+			disk.ReadBps = state.Current.DiskReadBps
+			disk.WriteBps = state.Current.DiskWriteBps
+			disk.ReadMergedPerSec = state.Current.DiskReadMergedPerSec
+			disk.WriteMergedPerSec = state.Current.DiskWriteMergedPerSec
+			disk.Util = state.Current.DiskUtil
+			disk.AwaitMS = state.Current.DiskAwaitMS
+			disk.QueueDepth = state.Current.DiskQueueDepth
+			disk.Inflight = state.Current.DiskInflight
+		}),
+	}
+
+	rows := render.BuildStorageRows(state, 40, false)
+	assertRowLabelExists(t, rows, "Disk IO "+testDiskDevice)
+	assertRowLabelExists(t, rows, "Disk Latency")
+	assertRowLabelExists(t, rows, render.LabelDiskInflight)
+	assertRowLabelMissing(t, rows, "Disk Lat "+testDiskDevice)
+	assertRowLabelMissing(t, rows, "Inflight "+testDiskDevice)
+}
+
 func TestCPUHelpersSurfaceActiveAndImbalanceMetrics(t *testing.T) {
 	t.Parallel()
 
@@ -329,4 +391,30 @@ func TestDiskAndNetSummariesUseCollectedData(t *testing.T) {
 	if got := render.FormatQueueDepth(0.21); got != "0.21x" {
 		t.Fatalf("FormatQueueDepth = %q", got)
 	}
+}
+
+func assertRowLabelExists(t *testing.T, rows []render.TableRowSpec, label string) {
+	t.Helper()
+
+	if !rowLabelExists(rows, label) {
+		t.Fatalf("expected row label %q in %#v", label, rows)
+	}
+}
+
+func assertRowLabelMissing(t *testing.T, rows []render.TableRowSpec, label string) {
+	t.Helper()
+
+	if rowLabelExists(rows, label) {
+		t.Fatalf("unexpected row label %q in %#v", label, rows)
+	}
+}
+
+func rowLabelExists(rows []render.TableRowSpec, label string) bool {
+	for _, row := range rows {
+		if row.LabelText == label {
+			return true
+		}
+	}
+
+	return false
 }

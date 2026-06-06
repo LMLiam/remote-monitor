@@ -5,6 +5,7 @@ const (
 	testCPUName         = "AMD Ryzen 5 5600X 6-Core Processor"
 	testDataMount       = "/mnt/data"
 	testDiskDevice      = "sdd"
+	testNVMeDiskDevice  = "nvme0n1"
 	testDiskSource      = "/dev/sdd"
 	testExampleHost     = "example-host"
 	testFFmpegCommand   = "ffmpeg"

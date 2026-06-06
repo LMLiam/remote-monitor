@@ -41,6 +41,7 @@ func fromCoreSample(smp core.Sample) sample {
 	receivedAt := formatTime(smp.ReceivedAt)
 	smp.Net = nonNilSlice(smp.Net)
 	smp.Filesystems = nonNilSlice(smp.Filesystems)
+	smp.Disks = nonNilSlice(smp.Disks)
 	smp.CPUCoresUsage = nonNilSlice(smp.CPUCoresUsage)
 	smp.TopProcesses = nonNilSlice(smp.TopProcesses)
 	smp.GPUProcesses = nonNilSlice(smp.GPUProcesses)

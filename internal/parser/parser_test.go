@@ -224,6 +224,27 @@ func TestParserReportsLastRejectedSampleLine(t *testing.T) {
 	}
 }
 
+func TestParserBuildsDiskArrayFromSamplerJSON(t *testing.T) {
+	t.Parallel()
+
+	var p parser.Parser
+	line := `{"version":1,"disk":{"root_source":"/dev/sda1","root_used_kib":42000000,"root_total_kib":100000000,"root_used_percent":42,"device":"sda","read_bps":1024,"write_bps":2048,"read_merged_per_sec":1,"write_merged_per_sec":2,"util_percent":3,"await_ms":4.5,"queue_depth":0.25,"inflight":1},"disks":[{"device":"sda","read_bps":1024,"write_bps":2048,"read_merged_per_sec":1,"write_merged_per_sec":2,"util_percent":3,"await_ms":4.5,"queue_depth":0.25,"inflight":1},{"device":"nvme0n1","read_bps":4096,"write_bps":8192,"read_merged_per_sec":3,"write_merged_per_sec":4,"util_percent":5,"await_ms":1.25,"queue_depth":0.75,"inflight":2}]}`
+
+	got, ok := p.HandleLine(line)
+	if !ok || got == nil {
+		t.Fatalf("expected completed multi-disk sample from Parser")
+	}
+	if got.DiskDevice != "sda" || got.DiskReadBps != 1024 {
+		t.Fatalf("legacy root disk fields = %#v", got)
+	}
+	if len(got.Disks) != 2 {
+		t.Fatalf("disks = %#v", got.Disks)
+	}
+	if got.Disks[1].Device != "nvme0n1" || got.Disks[1].ReadBps != 4096 || got.Disks[1].QueueDepth != 0.75 {
+		t.Fatalf("second disk = %#v", got.Disks[1])
+	}
+}
+
 func TestParserBuildsSampleWithEscapedControlCharacters(t *testing.T) {
 	t.Parallel()
 

@@ -81,6 +81,7 @@ type wireSample struct {
 	Disk                 wireDisk              `json:"disk"`
 	Net                  []core.NetStat        `json:"net"`
 	Filesystems          []core.FilesystemStat `json:"filesystems"`
+	Disks                []core.DiskStat       `json:"disks"`
 	TCPRetransSegsPerSec int64                 `json:"tcp_retrans_segs_per_sec"`
 	TCPResetsPerSec      int64                 `json:"tcp_resets_per_sec"`
 	CPUCoresUsed         []core.CPUCore        `json:"cpu_core_usage"`
@@ -165,6 +166,7 @@ func (p *Parser) HandleLine(line string) (*core.Sample, bool) {
 		TCPResetsPerSec:       wire.TCPResetsPerSec,
 		Net:                   wire.Net,
 		Filesystems:           wire.Filesystems,
+		Disks:                 wire.Disks,
 		CPUCoresUsage:         wire.CPUCoresUsed,
 		TopProcesses:          wire.TopProcesses,
 		GPUProcesses:          wire.GPUProcesses,

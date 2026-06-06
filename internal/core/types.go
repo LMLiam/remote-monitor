@@ -105,6 +105,19 @@ type FilesystemStat struct {
 	InodesUsedPercent int    `json:"inodes_used_percent"`
 }
 
+// DiskStat contains one sampled block device I/O snapshot.
+type DiskStat struct {
+	Device            string  `json:"device"`
+	ReadBps           int64   `json:"read_bps"`
+	WriteBps          int64   `json:"write_bps"`
+	ReadMergedPerSec  int64   `json:"read_merged_per_sec"`
+	WriteMergedPerSec int64   `json:"write_merged_per_sec"`
+	Util              int     `json:"util_percent"`
+	AwaitMS           float64 `json:"await_ms"`
+	QueueDepth        float64 `json:"queue_depth"`
+	Inflight          int     `json:"inflight"`
+}
+
 // GPUStat contains one sampled GPU device snapshot.
 type GPUStat struct {
 	Index            int     `json:"index"`
@@ -197,6 +210,7 @@ type Sample struct {
 	TCPResetsPerSec       int64             `json:"tcp_resets_per_sec"`
 	Net                   []NetStat         `json:"net"`
 	Filesystems           []FilesystemStat  `json:"filesystems"`
+	Disks                 []DiskStat        `json:"disks"`
 	CPUCoresUsage         []CPUCore         `json:"cpu_core_usage"`
 	TopProcesses          []ProcessStat     `json:"top_processes"`
 	GPUProcesses          []GPUProcessStat  `json:"gpu_processes"`

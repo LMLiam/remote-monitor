@@ -112,6 +112,25 @@ func testNetStat(overrides ...func(*core.NetStat)) core.NetStat {
 	return net
 }
 
+func testDiskStat(overrides ...func(*core.DiskStat)) core.DiskStat {
+	disk := core.DiskStat{
+		Device:            "",
+		ReadBps:           0,
+		WriteBps:          0,
+		ReadMergedPerSec:  0,
+		WriteMergedPerSec: 0,
+		Util:              0,
+		AwaitMS:           0,
+		QueueDepth:        0,
+		Inflight:          0,
+	}
+	for _, override := range overrides {
+		override(&disk)
+	}
+
+	return disk
+}
+
 func testGPUStat(overrides ...func(*core.GPUStat)) core.GPUStat {
 	gpu := core.GPUStat{
 		Index:            0,

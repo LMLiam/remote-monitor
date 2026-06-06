@@ -138,6 +138,14 @@ func TestApplySampleAppendsExpandedHistorySeries(t *testing.T) {
 		smp.DiskUtil = 12
 		smp.DiskAwaitMS = 1.37
 		smp.DiskQueueDepth = 0.21
+		smp.Disks = []core.DiskStat{
+			testDiskStat(func(disk *core.DiskStat) {
+				disk.Device = testNVMeDiskDevice
+				disk.Util = 63
+				disk.AwaitMS = 2.4
+				disk.QueueDepth = 0.4
+			}),
+		}
 		smp.Net = []core.NetStat{
 			testNetStat(func(net *core.NetStat) {
 				net.Iface = testIfaceEth0
@@ -169,6 +177,9 @@ func TestApplySampleAppendsExpandedHistorySeries(t *testing.T) {
 	}
 	if got := state.RAMAvailHistory; len(got) != 1 || got[0] != metrics.RAMAvailablePercent(smp) {
 		t.Fatalf("ramAvailHistory = %#v", got)
+	}
+	if got := state.DiskHistory; len(got) != 1 || got[0] != metrics.DiskUtilPercent(smp) {
+		t.Fatalf("diskHistory = %#v", got)
 	}
 	if got := state.DiskLatencyHistory; len(got) != 1 || got[0] != metrics.DiskLatencyHistoryPercent(smp) {
 		t.Fatalf("diskLatencyHistory = %#v", got)

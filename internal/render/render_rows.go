@@ -5,6 +5,7 @@ const (
 	cpuPostMapRowsCap     = 6
 	memoryRowsCapacity    = 12
 	storageBaseRowsCap    = 10
+	storageRowsPerDisk    = 4
 	gpuRowsPerDevice      = 16
 	hotCorePreviewLimit   = 4
 	summaryStateChipMin   = 12
