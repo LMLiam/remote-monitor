@@ -227,9 +227,10 @@ code_generation:
       # (mirrors reviews.path_instructions for **/*_test.go).
       - path: "**/*_test.go"
         instructions: >-
-          Generated tests must call t.Parallel(), prefer table-driven cases,
-          cover each new or changed branch including the -1 and "" sentinels and
-          error paths, and assert with clear failure messages.
+          Generated tests must call t.Parallel(), must use table-driven cases
+          (pure helper tests are required to be table-driven), cover each new or
+          changed branch including the -1 and "" sentinels and error paths, and
+          assert with clear failure messages.
 
 issue_enrichment:
   auto_enrich:
