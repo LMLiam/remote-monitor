@@ -8,6 +8,10 @@ on:
       - master
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -19,6 +23,7 @@ jobs:
   tooling:
     name: Tooling Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -85,6 +90,7 @@ jobs:
   go:
     name: Go Checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -110,8 +116,18 @@ jobs:
       - name: Vet
         run: go vet -tags=integration ./...
 
-      - name: Test Go packages
-        run: go test -tags=integration ./cmd/... ./internal/...
+      - name: Test Go packages with race detector
+        run: |
+          coverage_file="coverage-${{ matrix.os }}.out"
+          coverage_report="coverage-${{ matrix.os }}.txt"
+          go test -race -covermode=atomic -coverprofile="${coverage_file}" -tags=integration ./cmd/... ./internal/...
+          go tool cover -func="${coverage_file}" | tee "${coverage_report}"
+          total="$(awk '/^total:/ { print $3 }' "${coverage_report}")"
+          {
+            echo "### Go coverage (${{ matrix.os }})"
+            echo
+            echo "total: ${total}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Test SSH e2e
         if: ${{ matrix.os == 'ubuntu-latest' }}

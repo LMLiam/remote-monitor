@@ -12,6 +12,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   pull-requests: read
@@ -21,6 +25,7 @@ jobs:
     name: Validate Pull Request Title
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout trusted validator
@@ -37,6 +42,7 @@ jobs:
   commit-subjects:
     name: Validate Commit Subjects
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout trusted validator
