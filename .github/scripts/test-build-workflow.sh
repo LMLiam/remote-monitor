@@ -45,23 +45,31 @@ extract_job_header() {
   '
 }
 
+extract_top_level_block() {
+  local block="$1"
+  local source_workflow="$2"
+
+  awk -v block="${block}" '
+    $0 == block ":" {
+      in_block = 1
+      print
+      next
+    }
+    in_block && $0 ~ /^[A-Za-z0-9_-]+:/ {
+      exit
+    }
+    in_block {
+      print
+    }
+  ' "${source_workflow}"
+}
+
 require_line() {
   local pattern="$1"
   local description="$2"
 
   if ! grep -Fq -- "${pattern}" "${workflow}"; then
     echo "build workflow missing ${description}: ${pattern}" >&2
-    exit 1
-  fi
-}
-
-require_file_line() {
-  local source_workflow="$1"
-  local pattern="$2"
-  local description="$3"
-
-  if ! grep -Fq -- "${pattern}" "${source_workflow}"; then
-    echo "${source_workflow} missing ${description}: ${pattern}" >&2
     exit 1
   fi
 }
@@ -90,10 +98,15 @@ reject_text() {
 
 require_workflow_concurrency() {
   local source_workflow="$1"
+  local concurrency_block
 
-  require_file_line "${source_workflow}" "concurrency:" "top-level concurrency block"
-  require_file_line "${source_workflow}" 'group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}' "stable concurrency group"
-  require_file_line "${source_workflow}" "cancel-in-progress: true" "superseded-run cancellation"
+  concurrency_block="$(extract_top_level_block concurrency "${source_workflow}")"
+  if [ -z "${concurrency_block}" ]; then
+    echo "${source_workflow} missing top-level concurrency block: concurrency:" >&2
+    exit 1
+  fi
+  require_text "${concurrency_block}" 'group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}' "stable concurrency group"
+  require_text "${concurrency_block}" "cancel-in-progress: true" "superseded-run cancellation"
 }
 
 require_job_timeout() {
