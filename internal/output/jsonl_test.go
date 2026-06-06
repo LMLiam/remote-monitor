@@ -124,6 +124,10 @@ func fullWireSampleLine() string {
 func assertSampleJSONFields(t *testing.T, smp core.Sample, got map[string]json.RawMessage) {
 	t.Helper()
 
+	expectedFields := map[string]struct{}{
+		"schema":      {},
+		"received_at": {},
+	}
 	sampleType := reflect.TypeFor[core.Sample]()
 	sampleValue := reflect.ValueOf(smp)
 	for fieldIndex := range sampleType.NumField() {
@@ -132,8 +136,10 @@ func assertSampleJSONFields(t *testing.T, smp core.Sample, got map[string]json.R
 		if name == "-" {
 			continue
 		}
+		expectedFields[name] = struct{}{}
 		assertRawJSONField(t, got, name, sampleValue.Field(fieldIndex).Interface())
 	}
+	assertExactJSONFieldSet(t, got, expectedFields)
 }
 
 func sampleJSONFieldName(t *testing.T, field reflect.StructField) string {
@@ -152,6 +158,19 @@ func sampleJSONFieldName(t *testing.T, field reflect.StructField) string {
 	}
 
 	return name
+}
+
+func assertExactJSONFieldSet(t *testing.T, got map[string]json.RawMessage, want map[string]struct{}) {
+	t.Helper()
+
+	if len(got) != len(want) {
+		t.Fatalf("JSONL field count = %d, want %d; fields = %#v", len(got), len(want), got)
+	}
+	for name := range got {
+		if _, ok := want[name]; !ok {
+			t.Fatalf("JSONL field %q was not expected", name)
+		}
+	}
 }
 
 func assertRawJSONField(t *testing.T, got map[string]json.RawMessage, name string, want any) {
