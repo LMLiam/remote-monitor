@@ -16,8 +16,8 @@ env:
   SHFMT_VERSION: v3.13.1
 
 jobs:
-  go:
-    name: Go Checks
+  tooling:
+    name: Tooling Checks
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -74,18 +74,48 @@ jobs:
         run: |
           bash .github/scripts/test-next-release-tag.sh
           bash .github/scripts/test-verify-main-checks.sh
-
-      - name: Vet
-        run: go vet -tags=integration ./...
-
-      - name: Test
-        run: go test -tags=integration ./...
+          bash .github/scripts/test-build-workflow.sh
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9
         with:
           version: v2.12.2
           args: --build-tags=integration
+
+  go:
+    name: Go Checks (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install Bash for sampler tests
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew list bash >/dev/null 2>&1 || brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+
+      - name: Vet
+        run: go vet -tags=integration ./...
+
+      - name: Test Go packages
+        run: go test -tags=integration ./cmd/... ./internal/...
+
+      - name: Test SSH e2e
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: go test -tags=integration ./tests/e2e
 
       - name: Compile
         run: go build -o remote-monitor ./cmd/remote-monitor
