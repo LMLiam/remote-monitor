@@ -79,22 +79,63 @@ bash internal/transport/sampler/assemble.sh   # or: go generate ./internal/trans
    `.github/PULL_REQUEST_TEMPLATE.md` (what and why, how each acceptance criterion is met, the check
    commands you ran, follow-ups); include `Closes #<N>`; mirror the issue's `--label`s and
    `--milestone`; `--assignee @me`.
-6. **Self-review loop** — repeat until clean:
-   - `gh pr checks <pr> --watch`; treat any red check as a blocking issue.
-   - Leave **inline, line-anchored** review comments for every real issue via
-     `gh api repos/:owner/:repo/pulls/<pr>/comments` (`commit_id` + `path` + `line`). No nitpicks:
-     correctness, missing tests, edge cases, error handling, security, convention violations.
-   - Fix each, push, reply on the thread, and resolve it
-     (`gh api graphql` `resolveReviewThread`).
-   - Re-review the new diff and re-check CI.
-   - Loop guard: if a failure persists after a few honest fix attempts, stop and report it with
-     evidence rather than thrashing.
+6. **Self-review — mandatory.** Run it as a separate phase against the
+   **Self-review (required)** section below: review the full diff as a cold reviewer, post an inline
+   comment for every finding, fix each, reply and resolve the thread, then re-review. Loop until a
+   full rubric pass adds no new findings, all threads are resolved, and CI is green (or after 5
+   rounds, reporting what remains). Finding nothing on round 1 means you reviewed too shallowly.
 7. **Definition of Done** (all true): every acceptance criterion met; local gate and remote CI fully
-   green; PR open with correct title/body/labels/milestone/assignee and `Closes #<N>`; your review
-   finds no substantive issues and every thread is resolved. **Do not merge** — `main` is protected
-   (PR + 1 approval + status checks + thread resolution required); leave merging to a human.
+   green; PR open with correct title/body/labels/milestone/assignee and `Closes #<N>`; you completed
+   **at least one full Self-review pass over the final diff** and every thread you opened is resolved.
+   Do not submit an approving review (you cannot approve your own PR). **Do not merge** — `main` is
+   protected (PR + 1 approval + status checks + thread resolution required); leave merging to a human.
 8. Report: the PR URL, a change summary, an acceptance-criteria checklist mapping each criterion to
-   where it is satisfied, the final CI status, and anything deferred.
+   where it is satisfied, **every self-review finding and how it was resolved** (with comment/thread
+   references), the final CI status, and anything deferred.
+
+## Self-review (required)
+
+Review as a **cold reviewer**: re-derive correctness from the diff alone and assume it is defective.
+"No issues found" on the first pass means the review was too shallow — look again at tests and error
+paths. Never submit an approving review on your own PR; use comments + thread resolution only.
+
+**Review rubric** — walk the full diff (`git diff origin/main...HEAD`) file-by-file against each:
+
+- Correctness: meets every acceptance criterion; off-by-one, nil/zero, ignored return values.
+- Errors: every error checked and wrapped; none swallowed; context cancellation honored.
+- Edge cases: empty / missing / unavailable inputs (sentinels are `-1` / `""`), large values, concurrency.
+- Tests: a test exists for every new or changed branch; table-driven; `t.Parallel()`; clear messages.
+- Security: no command/argument injection on anything reaching `ssh`/`exec` or the remote shell; no secrets in output or logs.
+- Conventions: passes the full gate; no new `//nolint` without justification; `exhaustruct`/`funlen` respected; `gofmt` clean.
+- Sampler: if a shell module changed, `sampler.sh` was regenerated; quoting is safe; `bash -n` is clean.
+- Docs & scope: user-visible changes reflected in `README`; no debug leftovers or stray `TODO`s; no unrelated edits.
+
+**Review mechanics (gh).** Inline comments need the head SHA + path + line; resolving a thread is a
+GraphQL mutation:
+
+```sh
+PR=<n>
+HEAD="$(gh pr view "$PR" --json headRefOid --jq .headRefOid)"
+
+# 1) inline, line-anchored comment (add -F start_line=.. -f start_side=RIGHT for a range):
+gh api repos/:owner/:repo/pulls/"$PR"/comments \
+  -f commit_id="$HEAD" -f path='internal/foo.go' -F line=42 -f side=RIGHT -f body='finding ...'
+
+# 2) list your review threads (ids + resolved state + location):
+read OWNER REPO < <(gh repo view --json owner,name --jq '.owner.login+" "+.name')
+gh api graphql -f owner="$OWNER" -f repo="$REPO" -F pr="$PR" -f query='
+query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){
+  pullRequest(number:$pr){reviewThreads(first:100){nodes{id isResolved
+    comments(first:1){nodes{path line}}}}}}}'
+
+# 3) reply with the fix, then resolve the thread:
+gh api repos/:owner/:repo/pulls/"$PR"/comments/<comment_id>/replies -f body='fixed in <sha>'
+gh api graphql -f tid='<threadId>' -f query='
+mutation($tid:ID!){resolveReviewThread(input:{threadId:$tid}){thread{isResolved}}}'
+```
+
+**Exit criteria.** Stop only when a full rubric pass yields no new findings, every thread is
+resolved, and all CI checks are green — or after 5 rounds, reporting what remains.
 
 ## GitHub access
 
