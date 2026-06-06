@@ -202,6 +202,21 @@ func TestSSHControlPathDirs(t *testing.T) {
 		assertPortableControlPath(t, controlPath)
 	})
 
+	t.Run("rel", func(t *testing.T) {
+		homeDir := t.TempDir()
+		relativeRuntimeDir := "relative-runtime"
+		t.Setenv("XDG_RUNTIME_DIR", relativeRuntimeDir)
+		t.Setenv("HOME", homeDir)
+
+		controlPath := transport.ResolveSSHControlPath(cfg)
+		controlDir := filepath.Join(homeDir, ".cache", "remote-monitor")
+
+		assertControlPathUnder(t, controlPath, controlDir)
+		assertControlDirMode(t, controlDir)
+		assertPortableControlPath(t, controlPath)
+		assertDirNotCreated(t, filepath.Join(relativeRuntimeDir, "remote-monitor"))
+	})
+
 	t.Run("long home", func(t *testing.T) {
 		homeDir := filepath.Join(t.TempDir(), strings.Repeat("x", 80))
 		t.Setenv("XDG_RUNTIME_DIR", "")
