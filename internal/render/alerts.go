@@ -10,21 +10,6 @@ import (
 const (
 	alertSummaryLimit  = 3
 	alertIssueCapacity = 8
-
-	cpuCriticalPercent = 95
-	cpuCriticalTempC   = 85
-	cpuWarnTempC       = 75
-
-	ramCriticalAvailPercent = 5
-	ramWarnAvailPercent     = 15
-
-	gpuCriticalTempC    = 80
-	gpuWarnTempC        = 70
-	vramCriticalPercent = 95
-	vramWarnPercent     = 85
-
-	diskCriticalUsedPercent = 95
-	diskWarnUsedPercent     = 90
 )
 
 type alertIssue struct {
@@ -54,6 +39,7 @@ func AlertSummary(state core.AppState) (severity, summary string) {
 
 func alertIssues(state core.AppState) []alertIssue {
 	s := state.Current
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	issues := make([]alertIssue, 0, alertIssueCapacity)
 	switch currentStatus(state) {
 	case core.StatusDisconnected:
@@ -62,10 +48,10 @@ func alertIssues(state core.AppState) []alertIssue {
 		issues = appendAlertIssue(issues, severityWarn, core.StatusStale)
 	}
 
-	issues = appendCPUAlertIssues(issues, s)
-	issues = appendMemoryAlertIssues(issues, s)
-	issues = appendGPUAlertIssues(issues, s)
-	issues = appendDiskAlertIssues(issues, s)
+	issues = appendCPUAlertIssues(issues, s, thresholds)
+	issues = appendMemoryAlertIssues(issues, s, thresholds)
+	issues = appendGPUAlertIssues(issues, s, thresholds)
+	issues = appendDiskAlertIssues(issues, s, thresholds)
 
 	return appendNetworkAlertIssues(issues, s)
 }
@@ -77,25 +63,25 @@ func appendAlertIssue(issues []alertIssue, severity, text string) []alertIssue {
 	})
 }
 
-func appendCPUAlertIssues(issues []alertIssue, s core.Sample) []alertIssue {
-	if s.CPUPercent >= cpuCriticalPercent {
+func appendCPUAlertIssues(issues []alertIssue, s core.Sample, thresholds core.Thresholds) []alertIssue {
+	if s.CPUPercent >= thresholds.CPUCriticalPercent { // default 95
 		issues = appendAlertIssue(issues, severityCritical, "cpu saturated")
 	}
-	if s.CPUTempC >= cpuCriticalTempC {
+	if s.CPUTempC >= thresholds.CPUCriticalTemp { // default 85 C
 		issues = appendAlertIssue(issues, severityCritical, "cpu hot")
-	} else if s.CPUTempC >= cpuWarnTempC {
+	} else if s.CPUTempC >= thresholds.CPUWarnTemp { // default 75 C
 		issues = appendAlertIssue(issues, severityWarn, "cpu warm")
 	}
 
 	return issues
 }
 
-func appendMemoryAlertIssues(issues []alertIssue, s core.Sample) []alertIssue {
+func appendMemoryAlertIssues(issues []alertIssue, s core.Sample, thresholds core.Thresholds) []alertIssue {
 	if ramAvailPct := metrics.RAMAvailablePercent(s); ramAvailPct >= 0 {
 		switch {
-		case ramAvailPct <= ramCriticalAvailPercent:
+		case ramAvailPct <= thresholds.RAMCriticalAvailablePercent: // default 5
 			issues = appendAlertIssue(issues, severityCritical, "ram low")
-		case ramAvailPct <= ramWarnAvailPercent:
+		case ramAvailPct <= thresholds.RAMWarnAvailablePercent: // default 15
 			issues = appendAlertIssue(issues, severityWarn, "ram tight")
 		}
 	}
@@ -103,26 +89,26 @@ func appendMemoryAlertIssues(issues []alertIssue, s core.Sample) []alertIssue {
 	return issues
 }
 
-func appendGPUAlertIssues(issues []alertIssue, s core.Sample) []alertIssue {
-	if metrics.OverallTempValue(s) >= gpuCriticalTempC {
+func appendGPUAlertIssues(issues []alertIssue, s core.Sample, thresholds core.Thresholds) []alertIssue {
+	if metrics.OverallTempValue(s) >= thresholds.GPUCriticalTemp { // default 80 C
 		issues = appendAlertIssue(issues, severityCritical, "gpu hot")
-	} else if metrics.OverallTempValue(s) >= gpuWarnTempC {
+	} else if metrics.OverallTempValue(s) >= thresholds.GPUWarnTemp { // default 70 C
 		issues = appendAlertIssue(issues, severityWarn, "gpu warm")
 	}
-	if vramPct := metrics.OverallVRAMPct(s); vramPct >= vramCriticalPercent {
+	if vramPct := metrics.OverallVRAMPct(s); vramPct >= thresholds.VRAMCriticalPercent { // default 95
 		issues = appendAlertIssue(issues, severityCritical, "vram high")
-	} else if vramPct >= vramWarnPercent {
+	} else if vramPct >= thresholds.VRAMWarnPercent { // default 85
 		issues = appendAlertIssue(issues, severityWarn, "vram high")
 	}
 
 	return issues
 }
 
-func appendDiskAlertIssues(issues []alertIssue, s core.Sample) []alertIssue {
+func appendDiskAlertIssues(issues []alertIssue, s core.Sample, thresholds core.Thresholds) []alertIssue {
 	switch {
-	case s.RootUsedPercent >= diskCriticalUsedPercent:
+	case s.RootUsedPercent >= thresholds.DiskCriticalPercent: // default 95
 		issues = appendAlertIssue(issues, severityCritical, "disk full")
-	case s.RootUsedPercent >= diskWarnUsedPercent:
+	case s.RootUsedPercent >= thresholds.DiskWarnPercent: // default 90
 		issues = appendAlertIssue(issues, severityWarn, "disk high")
 	}
 	switch mergeSeverity(diskAwaitSeverity(s.DiskAwaitMS), diskQueueSeverity(s.DiskQueueDepth)) {

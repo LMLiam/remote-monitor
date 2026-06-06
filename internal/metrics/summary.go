@@ -75,5 +75,9 @@ func OverallPowerPct(s core.Sample) int {
 
 // RAMAvailablePercent returns available RAM as a percent of total RAM.
 func RAMAvailablePercent(s core.Sample) int {
+	if s.RAMAvailableMiB < 0 || s.RAMTotalMiB <= 0 {
+		return -1
+	}
+
 	return PercentOf(s.RAMAvailableMiB, s.RAMTotalMiB)
 }

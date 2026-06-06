@@ -4,6 +4,7 @@ package render
 import (
 	"testing"
 
+	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/render/ansi"
 )
 
@@ -55,7 +56,7 @@ func TestSparklineColoredVisibleOutput(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := ansi.StripANSI(sparklineColored(tc.values, tc.width, tc.metricKind))
+			got := ansi.StripANSI(sparklineColored(tc.values, tc.width, tc.metricKind, core.DefaultThresholds()))
 			if got != tc.want {
 				t.Fatalf("visible sparklineColored = %q, want %q", got, tc.want)
 			}
@@ -111,7 +112,7 @@ func TestHistoryColor(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := historyColor(tc.metricKind, tc.value); got != tc.want {
+			if got := historyColor(tc.metricKind, tc.value, core.DefaultThresholds()); got != tc.want {
 				t.Fatalf("historyColor(%q, %d) = %q, want %q", tc.metricKind, tc.value, got, tc.want)
 			}
 		})

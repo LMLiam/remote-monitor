@@ -154,7 +154,7 @@ when the sampler omits the `power` object entirely.
 Other supporting core types include:
 
 - `Config`, which carries CLI, SSH, sampling, history, rendering, network
-  filtering, output, and theme settings.
+  filtering, output, theme, and alert/severity threshold settings.
 - `AppState`, which combines the current sample, runtime connection state,
   reconnect metadata, scroll state, network ceilings, and rolling history.
 - `StreamEvent`, which carries transport lifecycle state such as connecting,

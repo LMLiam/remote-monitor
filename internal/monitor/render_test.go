@@ -275,10 +275,11 @@ func TestGPUValueUsesTruncateWithoutMidPadding(t *testing.T) {
 func TestLowUtilMapsToInfoBlue(t *testing.T) {
 	t.Parallel()
 
-	if got := render.UtilSeverity(1); got != "info" {
+	thresholds := core.DefaultThresholds()
+	if got := render.UtilSeverity(1, thresholds); got != "info" {
 		t.Fatalf("UtilSeverity(1) = %q", got)
 	}
-	if got := render.SeverityColor(render.UtilSeverity(1)); got != ansi.Blue {
+	if got := render.SeverityColor(render.UtilSeverity(1, thresholds)); got != ansi.Blue {
 		t.Fatalf("SeverityColor(UtilSeverity(1)) = %q", got)
 	}
 }

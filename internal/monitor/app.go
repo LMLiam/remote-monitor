@@ -486,7 +486,7 @@ func applyPreparedSample(state *core.AppState, smp core.Sample) {
 	appendHistory(&state.DiskLatencyHistory, metrics.DiskLatencyHistoryPercent(smp), state.Cfg.HistoryLimit)
 	appendHistory(&state.GPUHistory, metrics.OverallGPUUtil(smp), state.Cfg.HistoryLimit)
 	appendHistory(&state.VRAMHistory, metrics.OverallVRAMPct(smp), state.Cfg.HistoryLimit)
-	appendHistory(&state.TempHistory, metrics.OverallTempPct(smp), state.Cfg.HistoryLimit)
+	appendHistory(&state.TempHistory, metrics.OverallTempValue(smp), state.Cfg.HistoryLimit)
 	appendHistory(&state.PowerHistory, metrics.OverallPowerPct(smp), state.Cfg.HistoryLimit)
 	appendHistory64(&state.NetRXHistory, metrics.TotalNetRXBps(smp), state.Cfg.HistoryLimit)
 	appendHistory64(&state.NetTXHistory, metrics.TotalNetTXBps(smp), state.Cfg.HistoryLimit)

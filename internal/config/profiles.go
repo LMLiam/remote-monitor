@@ -18,6 +18,7 @@ var (
 	errProfileThemeUnsupported = errors.New("profile theme unsupported")
 	errProfileValueTooHigh     = errors.New("profile value above maximum")
 	errProfileValueTooLow      = errors.New("profile value below minimum")
+	errProfileValueInvalid     = errors.New("profile value invalid")
 	errUnknownConfigKey        = errors.New("unknown config key")
 )
 
@@ -40,6 +41,18 @@ type profileConfig struct {
 	SSHServerAlive    *int    `toml:"ssh_server_alive"`
 	SSHServerCount    *int    `toml:"ssh_server_alive_count"`
 	SSHControlPersist *int    `toml:"ssh_control_persist"`
+
+	CPUCriticalPercent          *int `toml:"cpu_critical_percent"`
+	CPUWarnTemp                 *int `toml:"cpu_warn_temp"`
+	CPUCriticalTemp             *int `toml:"cpu_critical_temp"`
+	RAMWarnAvailablePercent     *int `toml:"ram_warn_available_percent"`
+	RAMCriticalAvailablePercent *int `toml:"ram_critical_available_percent"`
+	GPUWarnTemp                 *int `toml:"gpu_warn_temp"`
+	GPUCriticalTemp             *int `toml:"gpu_critical_temp"`
+	VRAMWarnPercent             *int `toml:"vram_warn_percent"`
+	VRAMCriticalPercent         *int `toml:"vram_critical_percent"`
+	DiskWarnPercent             *int `toml:"disk_warn_percent"`
+	DiskCriticalPercent         *int `toml:"disk_critical_percent"`
 }
 
 func loadProfile(path, name string) (profileConfig, error) {
@@ -111,8 +124,81 @@ func applyProfile(values *configValues, profile profileConfig, name string) erro
 	if err := applyProfileInt(profile.SSHControlPersist, 0, 0, name, "ssh_control_persist", &values.sshControlPersist); err != nil {
 		return err
 	}
+	if err := applyProfileThresholds(values, profile, name); err != nil {
+		return err
+	}
 
 	return nil
+}
+
+func applyProfileThresholds(values *configValues, profile profileConfig, name string) error {
+	thresholds := &values.thresholds
+	if err := applyProfileInt(profile.CPUCriticalPercent, minThresholdPercent, maxThresholdPercent, name, "cpu_critical_percent", &thresholds.CPUCriticalPercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.CPUWarnTemp, minThresholdTempC, maxThresholdTempC, name, "cpu_warn_temp", &thresholds.CPUWarnTemp); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.CPUCriticalTemp, minThresholdTempC, maxThresholdTempC, name, "cpu_critical_temp", &thresholds.CPUCriticalTemp); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.RAMWarnAvailablePercent, minThresholdPercent, maxThresholdPercent, name, "ram_warn_available_percent", &thresholds.RAMWarnAvailablePercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.RAMCriticalAvailablePercent, minThresholdPercent, maxThresholdPercent, name, "ram_critical_available_percent", &thresholds.RAMCriticalAvailablePercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.GPUWarnTemp, minThresholdTempC, maxThresholdTempC, name, "gpu_warn_temp", &thresholds.GPUWarnTemp); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.GPUCriticalTemp, minThresholdTempC, maxThresholdTempC, name, "gpu_critical_temp", &thresholds.GPUCriticalTemp); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.VRAMWarnPercent, minThresholdPercent, maxThresholdPercent, name, "vram_warn_percent", &thresholds.VRAMWarnPercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.VRAMCriticalPercent, minThresholdPercent, maxThresholdPercent, name, "vram_critical_percent", &thresholds.VRAMCriticalPercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.DiskWarnPercent, minThresholdPercent, maxThresholdPercent, name, "disk_warn_percent", &thresholds.DiskWarnPercent); err != nil {
+		return err
+	}
+	if err := applyProfileInt(profile.DiskCriticalPercent, minThresholdPercent, maxThresholdPercent, name, "disk_critical_percent", &thresholds.DiskCriticalPercent); err != nil {
+		return err
+	}
+
+	return validateProfileThresholdPairs(values.thresholds, profile, name)
+}
+
+func validateProfileThresholdPairs(thresholds core.Thresholds, profile profileConfig, name string) error {
+	if hasProfileInt(profile.CPUWarnTemp, profile.CPUCriticalTemp) && thresholds.CPUWarnTemp >= thresholds.CPUCriticalTemp {
+		return fmt.Errorf("%w: profile %s cpu_warn_temp must be less than cpu_critical_temp", errProfileValueInvalid, name)
+	}
+	if hasProfileInt(profile.RAMWarnAvailablePercent, profile.RAMCriticalAvailablePercent) &&
+		thresholds.RAMWarnAvailablePercent <= thresholds.RAMCriticalAvailablePercent {
+		return fmt.Errorf("%w: profile %s ram_warn_available_percent must be greater than ram_critical_available_percent", errProfileValueInvalid, name)
+	}
+	if hasProfileInt(profile.GPUWarnTemp, profile.GPUCriticalTemp) && thresholds.GPUWarnTemp >= thresholds.GPUCriticalTemp {
+		return fmt.Errorf("%w: profile %s gpu_warn_temp must be less than gpu_critical_temp", errProfileValueInvalid, name)
+	}
+	if hasProfileInt(profile.VRAMWarnPercent, profile.VRAMCriticalPercent) && thresholds.VRAMWarnPercent >= thresholds.VRAMCriticalPercent {
+		return fmt.Errorf("%w: profile %s vram_warn_percent must be less than vram_critical_percent", errProfileValueInvalid, name)
+	}
+	if hasProfileInt(profile.DiskWarnPercent, profile.DiskCriticalPercent) && thresholds.DiskWarnPercent >= thresholds.DiskCriticalPercent {
+		return fmt.Errorf("%w: profile %s disk_warn_percent must be less than disk_critical_percent", errProfileValueInvalid, name)
+	}
+
+	return nil
+}
+
+func hasProfileInt(values ...*int) bool {
+	for _, value := range values {
+		if value != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 func applyProfileInt(value *int, minValue, maxValue int, profileName, fieldName string, target *int) error {

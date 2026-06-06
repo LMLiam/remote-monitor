@@ -28,6 +28,52 @@ const (
 	DefaultProcessCount = 4
 )
 
+const (
+	defaultCPUCriticalPercent          = 95
+	defaultCPUWarnTemp                 = 75
+	defaultCPUCriticalTemp             = 85
+	defaultRAMWarnAvailablePercent     = 15
+	defaultRAMCriticalAvailablePercent = 5
+	defaultGPUWarnTemp                 = 70
+	defaultGPUCriticalTemp             = 80
+	defaultVRAMWarnPercent             = 85
+	defaultVRAMCriticalPercent         = 95
+	defaultDiskWarnPercent             = 90
+	defaultDiskCriticalPercent         = 95
+)
+
+// Thresholds contains configurable alert and severity boundaries.
+type Thresholds struct {
+	CPUCriticalPercent          int
+	CPUWarnTemp                 int
+	CPUCriticalTemp             int
+	RAMWarnAvailablePercent     int
+	RAMCriticalAvailablePercent int
+	GPUWarnTemp                 int
+	GPUCriticalTemp             int
+	VRAMWarnPercent             int
+	VRAMCriticalPercent         int
+	DiskWarnPercent             int
+	DiskCriticalPercent         int
+}
+
+// DefaultThresholds returns alert and severity boundaries matching built-in defaults.
+func DefaultThresholds() Thresholds {
+	return Thresholds{
+		CPUCriticalPercent:          defaultCPUCriticalPercent,
+		CPUWarnTemp:                 defaultCPUWarnTemp,
+		CPUCriticalTemp:             defaultCPUCriticalTemp,
+		RAMWarnAvailablePercent:     defaultRAMWarnAvailablePercent,
+		RAMCriticalAvailablePercent: defaultRAMCriticalAvailablePercent,
+		GPUWarnTemp:                 defaultGPUWarnTemp,
+		GPUCriticalTemp:             defaultGPUCriticalTemp,
+		VRAMWarnPercent:             defaultVRAMWarnPercent,
+		VRAMCriticalPercent:         defaultVRAMCriticalPercent,
+		DiskWarnPercent:             defaultDiskWarnPercent,
+		DiskCriticalPercent:         defaultDiskCriticalPercent,
+	}
+}
+
 // Config contains CLI, SSH, sampling, and rendering settings.
 type Config struct {
 	Host               string
@@ -55,6 +101,7 @@ type Config struct {
 	SSHAliveCountMax   int
 	SSHControlPersist  time.Duration
 	SSHControlPath     string
+	Thresholds         Thresholds
 }
 
 // NetStat contains one sampled network interface snapshot.

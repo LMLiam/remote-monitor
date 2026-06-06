@@ -28,6 +28,9 @@ var ErrInvalidProcessCount = errors.New("invalid process count")
 // ErrInvalidNetworkPattern reports an unsupported network interface pattern.
 var ErrInvalidNetworkPattern = errors.New("invalid network interface pattern")
 
+// ErrInvalidThreshold reports an unsupported alert/severity threshold value.
+var ErrInvalidThreshold = errors.New("invalid threshold")
+
 const (
 	defaultHistoryLimit       = 240
 	defaultReconnectDelaySecs = 2
@@ -38,7 +41,25 @@ const (
 	minHistoryLimit           = 30
 	minStaleAfterSecs         = 3
 	maxRenderFPS              = 60
+	minThresholdTempC         = 0
+	maxThresholdTempC         = 150
+	minThresholdPercent       = 0
+	maxThresholdPercent       = 100
 )
+
+type thresholdFlagValues struct {
+	cpuCriticalPercent          *int
+	cpuWarnTemp                 *int
+	cpuCriticalTemp             *int
+	ramWarnAvailablePercent     *int
+	ramCriticalAvailablePercent *int
+	gpuWarnTemp                 *int
+	gpuCriticalTemp             *int
+	vramWarnPercent             *int
+	vramCriticalPercent         *int
+	diskWarnPercent             *int
+	diskCriticalPercent         *int
+}
 
 // ParseConfig builds monitor configuration from CLI args and environment defaults.
 func ParseConfig(args []string) (core.Config, error) {
@@ -74,6 +95,7 @@ func ParseConfig(args []string) (core.Config, error) {
 	sshAliveInterval := fs.Int("ssh-server-alive", cliValues.sshAliveInterval, "SSH keepalive interval in seconds")
 	sshAliveCount := fs.Int("ssh-server-alive-count", cliValues.sshAliveCount, "SSH keepalive failure threshold before reconnect")
 	sshControlPersist := fs.Int("ssh-control-persist", cliValues.sshControlPersist, "SSH control socket persist time in seconds")
+	thresholdFlags := registerThresholdFlags(fs, cliValues.thresholds)
 
 	if err := fs.Parse(args); err != nil {
 		return core.Config{}, err
@@ -121,6 +143,7 @@ func ParseConfig(args []string) (core.Config, error) {
 		sshAliveInterval:  *sshAliveInterval,
 		sshAliveCount:     *sshAliveCount,
 		sshControlPersist: *sshControlPersist,
+		thresholds:        thresholdFlags.thresholds(),
 	}
 
 	resolved := envDefaults
@@ -136,6 +159,9 @@ func ParseConfig(args []string) (core.Config, error) {
 	}
 
 	applyExplicitFlags(&resolved, cliValues, explicitFlags)
+	if err := validateThresholds(resolved.thresholds, ""); err != nil {
+		return core.Config{}, err
+	}
 	if fs.NArg() > 0 {
 		resolved.host = fs.Arg(0)
 	}
@@ -184,6 +210,7 @@ func buildCoreConfig(
 		SSHAliveCountMax:   resolved.sshAliveCount,
 		SSHControlPersist:  time.Duration(resolved.sshControlPersist) * time.Second,
 		SSHControlPath:     "",
+		Thresholds:         resolved.thresholds,
 	}
 }
 
@@ -253,10 +280,55 @@ type configValues struct {
 	sshAliveInterval  int
 	sshAliveCount     int
 	sshControlPersist int
+	thresholds        core.Thresholds
+}
+
+func registerThresholdFlags(fs *flag.FlagSet, defaults core.Thresholds) thresholdFlagValues {
+	return thresholdFlagValues{
+		cpuCriticalPercent:          fs.Int("cpu-critical-percent", defaults.CPUCriticalPercent, "CPU utilization critical threshold percent"),
+		cpuWarnTemp:                 fs.Int("cpu-warn-temp", defaults.CPUWarnTemp, "CPU temperature warning threshold in Celsius"),
+		cpuCriticalTemp:             fs.Int("cpu-critical-temp", defaults.CPUCriticalTemp, "CPU temperature critical threshold in Celsius"),
+		ramWarnAvailablePercent:     fs.Int("ram-warn-available-percent", defaults.RAMWarnAvailablePercent, "RAM available warning threshold percent"),
+		ramCriticalAvailablePercent: fs.Int("ram-critical-available-percent", defaults.RAMCriticalAvailablePercent, "RAM available critical threshold percent"),
+		gpuWarnTemp:                 fs.Int("gpu-warn-temp", defaults.GPUWarnTemp, "GPU temperature warning threshold in Celsius"),
+		gpuCriticalTemp:             fs.Int("gpu-critical-temp", defaults.GPUCriticalTemp, "GPU temperature critical threshold in Celsius"),
+		vramWarnPercent:             fs.Int("vram-warn-percent", defaults.VRAMWarnPercent, "VRAM utilization warning threshold percent"),
+		vramCriticalPercent:         fs.Int("vram-critical-percent", defaults.VRAMCriticalPercent, "VRAM utilization critical threshold percent"),
+		diskWarnPercent:             fs.Int("disk-warn-percent", defaults.DiskWarnPercent, "Disk usage warning threshold percent"),
+		diskCriticalPercent:         fs.Int("disk-critical-percent", defaults.DiskCriticalPercent, "Disk usage critical threshold percent"),
+	}
+}
+
+func (values thresholdFlagValues) thresholds() core.Thresholds {
+	return core.Thresholds{
+		CPUCriticalPercent:          *values.cpuCriticalPercent,
+		CPUWarnTemp:                 *values.cpuWarnTemp,
+		CPUCriticalTemp:             *values.cpuCriticalTemp,
+		RAMWarnAvailablePercent:     *values.ramWarnAvailablePercent,
+		RAMCriticalAvailablePercent: *values.ramCriticalAvailablePercent,
+		GPUWarnTemp:                 *values.gpuWarnTemp,
+		GPUCriticalTemp:             *values.gpuCriticalTemp,
+		VRAMWarnPercent:             *values.vramWarnPercent,
+		VRAMCriticalPercent:         *values.vramCriticalPercent,
+		DiskWarnPercent:             *values.diskWarnPercent,
+		DiskCriticalPercent:         *values.diskCriticalPercent,
+	}
 }
 
 func configValuesFromEnv() configValues {
 	intervalDefault := getenvInt("MONITOR_INTERVAL", 1)
+	thresholds := core.DefaultThresholds()
+	thresholds.CPUCriticalPercent = getenvInt("MONITOR_CPU_CRITICAL_PERCENT", thresholds.CPUCriticalPercent)
+	thresholds.CPUWarnTemp = getenvInt("MONITOR_CPU_WARN_TEMP", thresholds.CPUWarnTemp)
+	thresholds.CPUCriticalTemp = getenvInt("MONITOR_CPU_CRITICAL_TEMP", thresholds.CPUCriticalTemp)
+	thresholds.RAMWarnAvailablePercent = getenvInt("MONITOR_RAM_WARN_AVAILABLE_PERCENT", thresholds.RAMWarnAvailablePercent)
+	thresholds.RAMCriticalAvailablePercent = getenvInt("MONITOR_RAM_CRITICAL_AVAILABLE_PERCENT", thresholds.RAMCriticalAvailablePercent)
+	thresholds.GPUWarnTemp = getenvInt("MONITOR_GPU_WARN_TEMP", thresholds.GPUWarnTemp)
+	thresholds.GPUCriticalTemp = getenvInt("MONITOR_GPU_CRITICAL_TEMP", thresholds.GPUCriticalTemp)
+	thresholds.VRAMWarnPercent = getenvInt("MONITOR_VRAM_WARN_PERCENT", thresholds.VRAMWarnPercent)
+	thresholds.VRAMCriticalPercent = getenvInt("MONITOR_VRAM_CRITICAL_PERCENT", thresholds.VRAMCriticalPercent)
+	thresholds.DiskWarnPercent = getenvInt("MONITOR_DISK_WARN_PERCENT", thresholds.DiskWarnPercent)
+	thresholds.DiskCriticalPercent = getenvInt("MONITOR_DISK_CRITICAL_PERCENT", thresholds.DiskCriticalPercent)
 
 	return configValues{
 		host:              getenvDefault("REMOTE_MONITOR_HOST", ""),
@@ -276,6 +348,7 @@ func configValuesFromEnv() configValues {
 		sshAliveInterval:  getenvInt("MONITOR_SSH_ALIVE_INTERVAL", defaultSSHTimeoutSecs),
 		sshAliveCount:     getenvInt("MONITOR_SSH_ALIVE_COUNT", defaultSSHAliveCount),
 		sshControlPersist: getenvInt("MONITOR_SSH_CONTROL_PERSIST", defaultSSHControlSecs),
+		thresholds:        thresholds,
 	}
 }
 
@@ -380,6 +453,131 @@ func applyExplicitFlags(resolved *configValues, cli configValues, explicit map[s
 	if explicit["ssh-control-persist"] {
 		resolved.sshControlPersist = cli.sshControlPersist
 	}
+	applyExplicitThresholdFlags(&resolved.thresholds, cli.thresholds, explicit)
+}
+
+func applyExplicitThresholdFlags(resolved *core.Thresholds, cli core.Thresholds, explicit map[string]bool) {
+	if explicit["cpu-critical-percent"] {
+		resolved.CPUCriticalPercent = cli.CPUCriticalPercent
+	}
+	if explicit["cpu-warn-temp"] {
+		resolved.CPUWarnTemp = cli.CPUWarnTemp
+	}
+	if explicit["cpu-critical-temp"] {
+		resolved.CPUCriticalTemp = cli.CPUCriticalTemp
+	}
+	if explicit["ram-warn-available-percent"] {
+		resolved.RAMWarnAvailablePercent = cli.RAMWarnAvailablePercent
+	}
+	if explicit["ram-critical-available-percent"] {
+		resolved.RAMCriticalAvailablePercent = cli.RAMCriticalAvailablePercent
+	}
+	if explicit["gpu-warn-temp"] {
+		resolved.GPUWarnTemp = cli.GPUWarnTemp
+	}
+	if explicit["gpu-critical-temp"] {
+		resolved.GPUCriticalTemp = cli.GPUCriticalTemp
+	}
+	if explicit["vram-warn-percent"] {
+		resolved.VRAMWarnPercent = cli.VRAMWarnPercent
+	}
+	if explicit["vram-critical-percent"] {
+		resolved.VRAMCriticalPercent = cli.VRAMCriticalPercent
+	}
+	if explicit["disk-warn-percent"] {
+		resolved.DiskWarnPercent = cli.DiskWarnPercent
+	}
+	if explicit["disk-critical-percent"] {
+		resolved.DiskCriticalPercent = cli.DiskCriticalPercent
+	}
+}
+
+func validateThresholds(thresholds core.Thresholds, prefix string) error {
+	if err := validateThresholdPercent(thresholds.CPUCriticalPercent, thresholdField(prefix, "cpu_critical_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdTemp(thresholds.CPUWarnTemp, thresholdField(prefix, "cpu_warn_temp")); err != nil {
+		return err
+	}
+	if err := validateThresholdTemp(thresholds.CPUCriticalTemp, thresholdField(prefix, "cpu_critical_temp")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.RAMWarnAvailablePercent, thresholdField(prefix, "ram_warn_available_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.RAMCriticalAvailablePercent, thresholdField(prefix, "ram_critical_available_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdTemp(thresholds.GPUWarnTemp, thresholdField(prefix, "gpu_warn_temp")); err != nil {
+		return err
+	}
+	if err := validateThresholdTemp(thresholds.GPUCriticalTemp, thresholdField(prefix, "gpu_critical_temp")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.VRAMWarnPercent, thresholdField(prefix, "vram_warn_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.VRAMCriticalPercent, thresholdField(prefix, "vram_critical_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.DiskWarnPercent, thresholdField(prefix, "disk_warn_percent")); err != nil {
+		return err
+	}
+	if err := validateThresholdPercent(thresholds.DiskCriticalPercent, thresholdField(prefix, "disk_critical_percent")); err != nil {
+		return err
+	}
+
+	return validateThresholdPairs(thresholds, prefix)
+}
+
+func validateThresholdPercent(value int, fieldName string) error {
+	switch {
+	case value < minThresholdPercent:
+		return fmt.Errorf("%w: %s must be at least %d", ErrInvalidThreshold, fieldName, minThresholdPercent)
+	case value > maxThresholdPercent:
+		return fmt.Errorf("%w: %s must be no more than %d", ErrInvalidThreshold, fieldName, maxThresholdPercent)
+	default:
+		return nil
+	}
+}
+
+func validateThresholdTemp(value int, fieldName string) error {
+	switch {
+	case value < minThresholdTempC:
+		return fmt.Errorf("%w: %s must be at least %d", ErrInvalidThreshold, fieldName, minThresholdTempC)
+	case value > maxThresholdTempC:
+		return fmt.Errorf("%w: %s must be no more than %d", ErrInvalidThreshold, fieldName, maxThresholdTempC)
+	default:
+		return nil
+	}
+}
+
+func validateThresholdPairs(thresholds core.Thresholds, prefix string) error {
+	if thresholds.CPUWarnTemp >= thresholds.CPUCriticalTemp {
+		return fmt.Errorf("%w: %s must be less than %s", ErrInvalidThreshold, thresholdField(prefix, "cpu_warn_temp"), thresholdField(prefix, "cpu_critical_temp"))
+	}
+	if thresholds.RAMWarnAvailablePercent <= thresholds.RAMCriticalAvailablePercent {
+		return fmt.Errorf("%w: %s must be greater than %s", ErrInvalidThreshold, thresholdField(prefix, "ram_warn_available_percent"), thresholdField(prefix, "ram_critical_available_percent"))
+	}
+	if thresholds.GPUWarnTemp >= thresholds.GPUCriticalTemp {
+		return fmt.Errorf("%w: %s must be less than %s", ErrInvalidThreshold, thresholdField(prefix, "gpu_warn_temp"), thresholdField(prefix, "gpu_critical_temp"))
+	}
+	if thresholds.VRAMWarnPercent >= thresholds.VRAMCriticalPercent {
+		return fmt.Errorf("%w: %s must be less than %s", ErrInvalidThreshold, thresholdField(prefix, "vram_warn_percent"), thresholdField(prefix, "vram_critical_percent"))
+	}
+	if thresholds.DiskWarnPercent >= thresholds.DiskCriticalPercent {
+		return fmt.Errorf("%w: %s must be less than %s", ErrInvalidThreshold, thresholdField(prefix, "disk_warn_percent"), thresholdField(prefix, "disk_critical_percent"))
+	}
+
+	return nil
+}
+
+func thresholdField(prefix, fieldName string) string {
+	if prefix == "" {
+		return fieldName
+	}
+
+	return prefix + " " + fieldName
 }
 
 func getenvDefault(key, fallback string) string {
