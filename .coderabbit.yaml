@@ -1,0 +1,164 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# CodeRabbit configuration for remote-monitor.
+# Strict reviews with early-access features enabled. The per-path and tone
+# instructions mirror the conventions in AGENTS.md and CONTRIBUTING.md.
+
+language: en-US
+early_access: true
+
+tone_instructions: >-
+  Be a strict, concise senior reviewer. Flag concrete issues with a short
+  severity tag (blocker / major / minor / nit) and the reasoning; skip praise
+  and filler. Prioritize correctness, error handling, edge cases (unavailable
+  metrics use -1 or "" sentinels), missing tests, security (no command or
+  argument injection on anything reaching ssh, os/exec, or the remote shell),
+  and the repo's strict lint and convention rules.
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  review_status: true
+  collapse_walkthrough: false
+  changed_files_summary: true
+  sequence_diagrams: true
+  assess_linked_issues: true
+  related_issues: true
+  related_prs: true
+  suggested_reviewers: false
+  poem: false
+
+  auto_title_instructions: >-
+    Require a Conventional Commits subject: "verb(scope): summary" with a
+    lowercase verb and a lowercase scope, for example
+    "ci(sampler): add shellcheck linting". Keep it concise and imperative.
+
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+    base_branches:
+      - main
+
+  finishing_touches:
+    docstrings:
+      enabled: true
+    unit_tests:
+      enabled: true
+
+  pre_merge_checks:
+    title:
+      mode: error
+      requirements: >-
+        Conventional Commits style "verb(scope): summary" with a lowercase verb
+        and lowercase scope; concise and descriptive.
+    description:
+      mode: error
+    issue_assessment:
+      mode: error
+
+  path_filters:
+    # sampler.sh is generated from internal/transport/sampler/*.sh; review the
+    # source modules instead of the assembled output.
+    - "!internal/transport/sampler.sh"
+
+  path_instructions:
+    - path: "**/*.go"
+      instructions: >-
+        Enforce the repo's strict golangci-lint rules: exhaustruct (no partial
+        struct literals), funlen/cyclop/gocognit limits, wrapped errors with no
+        swallowed errors, and honored context cancellation. Treat -1 and "" as
+        the "unavailable" sentinels and check for them. Flag any value reaching
+        os/exec or ssh that could be influenced by host, profile, or environment
+        input as a possible argument/command injection. Require tests for every
+        new or changed branch.
+    - path: "internal/transport/sampler/*.sh"
+      instructions: >-
+        These Bash modules run on arbitrary remote Linux hosts. Require portable
+        constructs and safe quoting, guard optional tools with command -v, treat
+        missing data as -1 or "" sentinels rather than errors, and keep emitted
+        JSON valid. Remind the author to regenerate internal/transport/sampler.sh
+        via assemble.sh and to keep the change shellcheck-clean.
+    - path: ".github/workflows/*.yml"
+      instructions: >-
+        Require third-party actions pinned to a full commit SHA with a version
+        comment and present on the repo allow-list (see CONTRIBUTING.md). Keep
+        default workflow token permissions read-only, granting write only at the
+        job level. Flag injection-prone use of untrusted ${{ }} inputs.
+    - path: "**/*_test.go"
+      instructions: >-
+        Tests must call t.Parallel(), be table-driven where practical, cover
+        each new or changed branch including the -1/"" sentinel and error paths,
+        and assert with clear failure messages.
+
+  labeling_instructions:
+    - label: area:metrics
+      instructions: >-
+        Apply to metric collection, parsing, or the sample model
+        (internal/metrics, internal/parser, internal/core, internal/transport/sampler).
+    - label: area:rendering
+      instructions: >-
+        Apply to terminal layout, tables, gauges, colors, or non-interactive and
+        JSONL output (internal/render, internal/output).
+    - label: area:ssh
+      instructions: >-
+        Apply to SSH transport, reconnect behavior, sampler delivery, or remote
+        execution (internal/transport).
+    - label: area:tui
+      instructions: >-
+        Apply to the Bubble Tea app, keyboard input, themes, or viewport
+        (internal/monitor, internal/input).
+    - label: area:tooling
+      instructions: >-
+        Apply to build, CI, linting, scripts, or repository automation
+        (.github, scripts, root config files).
+    - label: area:docs
+      instructions: Apply to README, governance, or other documentation and templates.
+    - label: type:bug
+      instructions: Apply when the change fixes a defect.
+    - label: type:feature
+      instructions: Apply when the change adds a feature or a new metric.
+    - label: type:test
+      instructions: Apply when the change is primarily tests, fixtures, or coverage.
+    - label: type:ci
+      instructions: Apply to CI workflows, checks, or CI automation.
+    - label: type:docs
+      instructions: Apply when the change is primarily documentation.
+    - label: type:maintenance
+      instructions: Apply to refactors, chores, tooling upkeep, or dependency maintenance.
+    - label: security
+      instructions: >-
+        Apply to security-sensitive changes such as SSH command construction,
+        secret handling, or supply-chain and CI hardening.
+    - label: dependencies
+      instructions: Apply to Go module or GitHub Actions dependency updates.
+
+  tools:
+    shellcheck:
+      enabled: true
+    golangci-lint:
+      enabled: true
+    yamllint:
+      enabled: true
+    actionlint:
+      enabled: true
+    markdownlint:
+      enabled: true
+    gitleaks:
+      enabled: true
+    languagetool:
+      enabled: true
+      level: default
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: auto
+  issues:
+    scope: auto
+  pull_requests:
+    scope: auto
