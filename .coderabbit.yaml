@@ -50,7 +50,8 @@ reviews:
   suggested_reviewers_instructions: []            # default
   abort_on_close: true                            # default
   disable_cache: false                            # default
-  slop_detection: {}                              # default: empty object (spam/low-quality PR detection; public GitHub repos only)
+  slop_detection:
+    enabled: true                                 # default: spam/low-quality PR detection for public GitHub repos
 
   auto_review:
     enabled: true                                 # default
@@ -70,7 +71,7 @@ reviews:
     unit_tests:
       enabled: true                               # default: early-access unit-test generation
     simplify:
-      enabled: false                              # default
+      enabled: true                               # non-default (default false): enable on-demand simplify finishing touch
     custom: []                                    # default
 
   pre_merge_checks:
@@ -180,13 +181,18 @@ reviews:
       enabled: true
     gitleaks:
       enabled: true
+    zizmor:
+      enabled: true
+    trivy:
+      enabled: true
     languagetool:
       enabled: true
-      level: default                              # default (alternative: picky)
+      level: picky                                # non-default (default default): include stricter formal-language checks
 
 chat:
   auto_reply: true                                # default
-  art: false                                      # non-default (default true): no ASCII art, matches poem: false
+  art: true                                       # default: allow CodeRabbit chat ASCII art
+  allow_non_org_members: false                    # non-default (default true): restrict CodeRabbit chat commands
   integrations:
     jira:
       usage: auto                                 # default (no Jira connected)
@@ -203,11 +209,11 @@ knowledge_base:
       - AGENTS.md
       - CONTRIBUTING.md
   learnings:
-    scope: auto                                   # default
+    scope: local                                  # non-default (default auto): keep learnings repo-local
   issues:
-    scope: auto                                   # default
+    scope: local                                  # non-default (default auto): keep issue context repo-local
   pull_requests:
-    scope: auto                                   # default
+    scope: local                                  # non-default (default auto): keep PR context repo-local
   jira:
     usage: auto                                   # default
     project_keys: []                              # default
@@ -220,7 +226,12 @@ knowledge_base:
 code_generation:
   docstrings:
     language: en-US                               # default
-    path_instructions: []                         # default
+    path_instructions:
+      - path: "**/*.go"
+        instructions: >-
+          Generate godoc-formatted comments for exported symbols only. Start
+          with the symbol name. Do not use @param or @return tags. Keep comments
+          concise.
   unit_tests:
     path_instructions:
       # Generated *_test.go files inherit the repo's test conventions
