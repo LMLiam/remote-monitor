@@ -147,66 +147,68 @@ type PowerSupplyStat struct {
 
 // Sample contains one complete sampler payload after JSON parsing.
 type Sample struct {
-	RemoteEpoch           int64
-	RemoteTimestamp       string
-	RemoteName            string
-	UptimeSeconds         int64
-	Load1, Load5, Load15  float64
-	CPUCores              int
-	CPUName               string
-	CPUPercent            int
-	CPUUserPercent        int
-	CPUSystemPercent      int
-	CPUIOWaitPercent      int
-	CPUStealPercent       int
-	RAMUsedMiB            int64
-	RAMTotalMiB           int64
-	RAMAvailableMiB       int64
-	RAMFreeMiB            int64
-	RAMCacheMiB           int64
-	RAMBuffersMiB         int64
-	RAMReclaimableMiB     int64
-	RAMSharedMiB          int64
-	CPUFreqMHz            int
-	CPUMaxFreqMHz         int
-	CPUTempC              int
-	CPUPressureSomeAvg10  float64
-	CPUPressureFullAvg10  float64
-	MemPressureSomeAvg10  float64
-	MemPressureFullAvg10  float64
-	SwapFreeKiB           int64
-	SwapTotalKiB          int64
-	SwapInBps             int64
-	SwapOutBps            int64
-	RootSource            string
-	RootUsedKiB           int64
-	RootTotalKiB          int64
-	RootUsedPercent       int
-	DiskDevice            string
-	DiskReadBps           int64
-	DiskWriteBps          int64
-	DiskReadMergedPerSec  int64
-	DiskWriteMergedPerSec int64
-	DiskUtil              int
-	DiskAwaitMS           float64
-	DiskQueueDepth        float64
-	DiskInflight          int
-	TCPRetransSegsPerSec  int64
-	TCPResetsPerSec       int64
-	Net                   []NetStat
-	Filesystems           []FilesystemStat
-	CPUCoresUsage         []CPUCore
-	TopProcesses          []ProcessStat
-	GPUProcesses          []GPUProcessStat
-	GPUs                  []GPUStat
-	PowerSupplies         []PowerSupplyStat
-	ExternalPowerOnline   int
-	BatteryPercent        int
-	BatteryStatus         string
-	PowerDrawWatts        float64
-	UPSPresent            int
-	PowerSourceName       string
-	ReceivedAt            time.Time
+	RemoteEpoch           int64             `json:"remote_epoch"`
+	RemoteTimestamp       string            `json:"remote_timestamp"`
+	RemoteName            string            `json:"remote_name"`
+	UptimeSeconds         int64             `json:"uptime_seconds"`
+	Load1                 float64           `json:"load1"`
+	Load5                 float64           `json:"load5"`
+	Load15                float64           `json:"load15"`
+	CPUCores              int               `json:"cpu_cores"`
+	CPUName               string            `json:"cpu_name"`
+	CPUPercent            int               `json:"cpu_percent"`
+	CPUUserPercent        int               `json:"cpu_user_percent"`
+	CPUSystemPercent      int               `json:"cpu_system_percent"`
+	CPUIOWaitPercent      int               `json:"cpu_iowait_percent"`
+	CPUStealPercent       int               `json:"cpu_steal_percent"`
+	RAMUsedMiB            int64             `json:"ram_used_mib"`
+	RAMTotalMiB           int64             `json:"ram_total_mib"`
+	RAMAvailableMiB       int64             `json:"ram_available_mib"`
+	RAMFreeMiB            int64             `json:"ram_free_mib"`
+	RAMCacheMiB           int64             `json:"ram_cache_mib"`
+	RAMBuffersMiB         int64             `json:"ram_buffers_mib"`
+	RAMReclaimableMiB     int64             `json:"ram_reclaimable_mib"`
+	RAMSharedMiB          int64             `json:"ram_shared_mib"`
+	CPUFreqMHz            int               `json:"cpu_freq_mhz"`
+	CPUMaxFreqMHz         int               `json:"cpu_max_freq_mhz"`
+	CPUTempC              int               `json:"cpu_temp_c"`
+	CPUPressureSomeAvg10  float64           `json:"cpu_pressure_some_avg10"`
+	CPUPressureFullAvg10  float64           `json:"cpu_pressure_full_avg10"`
+	MemPressureSomeAvg10  float64           `json:"mem_pressure_some_avg10"`
+	MemPressureFullAvg10  float64           `json:"mem_pressure_full_avg10"`
+	SwapFreeKiB           int64             `json:"swap_free_kib"`
+	SwapTotalKiB          int64             `json:"swap_total_kib"`
+	SwapInBps             int64             `json:"swap_in_bps"`
+	SwapOutBps            int64             `json:"swap_out_bps"`
+	RootSource            string            `json:"root_source"`
+	RootUsedKiB           int64             `json:"root_used_kib"`
+	RootTotalKiB          int64             `json:"root_total_kib"`
+	RootUsedPercent       int               `json:"root_used_percent"`
+	DiskDevice            string            `json:"disk_device"`
+	DiskReadBps           int64             `json:"disk_read_bps"`
+	DiskWriteBps          int64             `json:"disk_write_bps"`
+	DiskReadMergedPerSec  int64             `json:"disk_read_merged_per_sec"`
+	DiskWriteMergedPerSec int64             `json:"disk_write_merged_per_sec"`
+	DiskUtil              int               `json:"disk_util_percent"`
+	DiskAwaitMS           float64           `json:"disk_await_ms"`
+	DiskQueueDepth        float64           `json:"disk_queue_depth"`
+	DiskInflight          int               `json:"disk_inflight"`
+	TCPRetransSegsPerSec  int64             `json:"tcp_retrans_segs_per_sec"`
+	TCPResetsPerSec       int64             `json:"tcp_resets_per_sec"`
+	Net                   []NetStat         `json:"net"`
+	Filesystems           []FilesystemStat  `json:"filesystems"`
+	CPUCoresUsage         []CPUCore         `json:"cpu_core_usage"`
+	TopProcesses          []ProcessStat     `json:"top_processes"`
+	GPUProcesses          []GPUProcessStat  `json:"gpu_processes"`
+	GPUs                  []GPUStat         `json:"gpus"`
+	PowerSupplies         []PowerSupplyStat `json:"power_supplies"`
+	ExternalPowerOnline   int               `json:"external_power_online"`
+	BatteryPercent        int               `json:"battery_percent"`
+	BatteryStatus         string            `json:"battery_status"`
+	PowerDrawWatts        float64           `json:"power_draw_w"`
+	UPSPresent            int               `json:"ups_present"`
+	PowerSourceName       string            `json:"power_source_name"`
+	ReceivedAt            time.Time         `json:"-"`
 }
 
 // StreamEvent describes connection lifecycle state from the sampler stream.
@@ -255,80 +257,18 @@ type AppState struct {
 
 // EmptySample returns a sample populated with sentinel zero and unknown values.
 func EmptySample() Sample {
-	return Sample{
-		RemoteEpoch:           0,
-		RemoteTimestamp:       "",
-		RemoteName:            "",
-		UptimeSeconds:         0,
-		Load1:                 0,
-		Load5:                 0,
-		Load15:                0,
-		CPUCores:              0,
-		CPUName:               "",
-		CPUPercent:            0,
-		CPUUserPercent:        0,
-		CPUSystemPercent:      0,
-		CPUIOWaitPercent:      0,
-		CPUStealPercent:       0,
-		RAMUsedMiB:            0,
-		RAMTotalMiB:           0,
-		RAMAvailableMiB:       0,
-		RAMFreeMiB:            0,
-		RAMCacheMiB:           0,
-		RAMBuffersMiB:         0,
-		RAMReclaimableMiB:     0,
-		RAMSharedMiB:          0,
-		CPUFreqMHz:            0,
-		CPUMaxFreqMHz:         0,
-		CPUTempC:              0,
-		CPUPressureSomeAvg10:  0,
-		CPUPressureFullAvg10:  0,
-		MemPressureSomeAvg10:  0,
-		MemPressureFullAvg10:  0,
-		SwapFreeKiB:           0,
-		SwapTotalKiB:          0,
-		SwapInBps:             0,
-		SwapOutBps:            0,
-		RootSource:            "",
-		RootUsedKiB:           0,
-		RootTotalKiB:          0,
-		RootUsedPercent:       0,
-		DiskDevice:            "",
-		DiskReadBps:           0,
-		DiskWriteBps:          0,
-		DiskReadMergedPerSec:  0,
-		DiskWriteMergedPerSec: 0,
-		DiskUtil:              0,
-		DiskAwaitMS:           0,
-		DiskQueueDepth:        0,
-		DiskInflight:          0,
-		TCPRetransSegsPerSec:  0,
-		TCPResetsPerSec:       0,
-		Net:                   nil,
-		Filesystems:           nil,
-		CPUCoresUsage:         nil,
-		TopProcesses:          nil,
-		GPUProcesses:          nil,
-		GPUs:                  nil,
-		PowerSupplies:         nil,
-		ExternalPowerOnline:   -1,
-		BatteryPercent:        -1,
-		BatteryStatus:         "",
-		PowerDrawWatts:        -1,
-		UPSPresent:            -1,
-		PowerSourceName:       "",
-		ReceivedAt:            time.Time{},
-	}
+	var sample Sample
+	sample.ExternalPowerOnline = -1
+	sample.BatteryPercent = -1
+	sample.PowerDrawWatts = -1
+	sample.UPSPresent = -1
+
+	return sample
 }
 
 // EmptyFilesystemStat returns the zero filesystem sample value.
 func EmptyFilesystemStat() FilesystemStat {
-	return FilesystemStat{
-		Source:            "",
-		Mount:             "",
-		UsedKiB:           0,
-		TotalKiB:          0,
-		UsedPercent:       0,
-		InodesUsedPercent: 0,
-	}
+	var stat FilesystemStat
+
+	return stat
 }
