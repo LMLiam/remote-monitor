@@ -48,6 +48,10 @@ func TestWriterEmitsNormalizedSampleJSONL(t *testing.T) {
 	filesystems := assertArrayField(t, got, "filesystems")
 	assertStringField(t, firstObject(t, filesystems), "mount", "/mnt/data")
 
+	disks := assertArrayField(t, got, "disks")
+	assertStringField(t, firstObject(t, disks), "device", "nvme0n1")
+	assertNumberField(t, firstObject(t, disks), "queue_depth", 0.75)
+
 	cores := assertArrayField(t, got, "cpu_core_usage")
 	assertNumberField(t, firstObject(t, cores), "percent", float64(77))
 
@@ -84,7 +88,7 @@ func TestWriterNormalizesNilSlicesToEmptyArrays(t *testing.T) {
 		t.Fatalf("JSONL output is not valid JSON: %v", err)
 	}
 
-	for _, field := range []string{"net", "filesystems", "cpu_core_usage", "top_processes", "gpu_processes", "gpus", "power_supplies"} {
+	for _, field := range []string{"net", "filesystems", "disks", "cpu_core_usage", "top_processes", "gpu_processes", "gpus", "power_supplies"} {
 		values := assertArrayField(t, got, field)
 		if len(values) != 0 {
 			t.Fatalf("%s = %#v, want empty array", field, values)
@@ -118,7 +122,7 @@ func TestWriterPreservesParsedWireSampleFields(t *testing.T) {
 }
 
 func fullWireSampleLine() string {
-	return `{"version":1,"epoch":1716912345,"timestamp":"2026-05-28 19:35:45","remote":"DESKTOP","uptime_seconds":14340,"load1":10.55,"load5":4.82,"load15":4.09,"cpu_cores":12,"cpu_name":"AMD Ryzen 5 5600X 6-Core Processor","cpu_percent":99,"cpu_user_percent":71,"cpu_system_percent":19,"cpu_iowait_percent":6,"cpu_steal_percent":1,"ram_used_mib":2455,"ram_total_mib":15967,"ram_available_mib":13512,"ram_free_mib":12041,"ram_cache_mib":3120,"ram_buffers_mib":288,"ram_reclaimable_mib":601,"ram_shared_mib":92,"cpu_freq_mhz":3680,"cpu_max_freq_mhz":4700,"cpu_temp_c":66,"cpu_pressure_some_avg10":2.43,"cpu_pressure_full_avg10":0.14,"mem_pressure_some_avg10":1.2,"mem_pressure_full_avg10":0.04,"swap":{"free_kib":0,"total_kib":4194304,"in_bps":8192,"out_bps":4096},"disk":{"root_source":"/dev/sdd","root_used_kib":42000000,"root_total_kib":100000000,"root_used_percent":42,"device":"sdd","read_bps":1048576,"write_bps":524288,"read_merged_per_sec":12,"write_merged_per_sec":7,"util_percent":12,"await_ms":1.37,"queue_depth":0.21,"inflight":3},"net":[{"iface":"eth0","rx_bps":125000,"tx_bps":24000,"rx_pps":1024,"tx_pps":512,"speed_mbps":1000,"rx_drops":2,"rx_errors":1,"rx_overruns":3,"tx_drops":0,"tx_errors":0,"tx_overruns":1}],"filesystems":[{"source":"/dev/sdc","mount":"/mnt/data","used_kib":8000000,"total_kib":20000000,"used_percent":40,"inodes_used_percent":11}],"tcp_retrans_segs_per_sec":9,"tcp_resets_per_sec":1,"cpu_core_usage":[{"index":0,"percent":77}],"top_processes":[{"pid":4242,"command":"python","cpu_percent":88,"rss_mib":2048}],"gpu_processes":[{"gpu_uuid":"GPU-123","pid":4242,"command":"python","used_mem_mib":3072}],"gpus":[{"index":0,"uuid":"GPU-123","name":"NVIDIA GeForce RTX 3060","util_percent":82,"mem_util_percent":34,"encoder_util_percent":12,"decoder_util_percent":8,"mem_used_mib":2003,"mem_total_mib":12288,"temp_c":55,"power_draw_w":103.12,"power_limit_w":170.0,"fan_percent":44,"sm_clock_mhz":210,"sm_clock_max_mhz":2100,"mem_clock_mhz":810,"mem_clock_max_mhz":7501,"graphics_clock_mhz":1740,"video_clock_mhz":1620,"pcie_gen_current":3,"pcie_gen_max":4,"pcie_width_current":8,"pcie_width_max":16,"throttle_reasons":"power cap","p_state":"P5"}],"power":{"external_power_online":1,"battery_percent":83,"battery_status":"Discharging","power_draw_w":12.34,"ups_present":1,"source_name":"BAT0","supplies":[{"name":"BAT0","type":"Battery","online":-1,"capacity_percent":83,"status":"Discharging","power_draw_w":12.34,"present":1}]}}`
+	return `{"version":1,"epoch":1716912345,"timestamp":"2026-05-28 19:35:45","remote":"DESKTOP","uptime_seconds":14340,"load1":10.55,"load5":4.82,"load15":4.09,"cpu_cores":12,"cpu_name":"AMD Ryzen 5 5600X 6-Core Processor","cpu_percent":99,"cpu_user_percent":71,"cpu_system_percent":19,"cpu_iowait_percent":6,"cpu_steal_percent":1,"ram_used_mib":2455,"ram_total_mib":15967,"ram_available_mib":13512,"ram_free_mib":12041,"ram_cache_mib":3120,"ram_buffers_mib":288,"ram_reclaimable_mib":601,"ram_shared_mib":92,"cpu_freq_mhz":3680,"cpu_max_freq_mhz":4700,"cpu_temp_c":66,"cpu_pressure_some_avg10":2.43,"cpu_pressure_full_avg10":0.14,"mem_pressure_some_avg10":1.2,"mem_pressure_full_avg10":0.04,"swap":{"free_kib":0,"total_kib":4194304,"in_bps":8192,"out_bps":4096},"disk":{"root_source":"/dev/sdd","root_used_kib":42000000,"root_total_kib":100000000,"root_used_percent":42,"device":"sdd","read_bps":1048576,"write_bps":524288,"read_merged_per_sec":12,"write_merged_per_sec":7,"util_percent":12,"await_ms":1.37,"queue_depth":0.21,"inflight":3},"net":[{"iface":"eth0","rx_bps":125000,"tx_bps":24000,"rx_pps":1024,"tx_pps":512,"speed_mbps":1000,"rx_drops":2,"rx_errors":1,"rx_overruns":3,"tx_drops":0,"tx_errors":0,"tx_overruns":1}],"filesystems":[{"source":"/dev/sdc","mount":"/mnt/data","used_kib":8000000,"total_kib":20000000,"used_percent":40,"inodes_used_percent":11}],"disks":[{"device":"nvme0n1","read_bps":4096,"write_bps":8192,"read_merged_per_sec":3,"write_merged_per_sec":4,"util_percent":5,"await_ms":1.25,"queue_depth":0.75,"inflight":2}],"tcp_retrans_segs_per_sec":9,"tcp_resets_per_sec":1,"cpu_core_usage":[{"index":0,"percent":77}],"top_processes":[{"pid":4242,"command":"python","cpu_percent":88,"rss_mib":2048}],"gpu_processes":[{"gpu_uuid":"GPU-123","pid":4242,"command":"python","used_mem_mib":3072}],"gpus":[{"index":0,"uuid":"GPU-123","name":"NVIDIA GeForce RTX 3060","util_percent":82,"mem_util_percent":34,"encoder_util_percent":12,"decoder_util_percent":8,"mem_used_mib":2003,"mem_total_mib":12288,"temp_c":55,"power_draw_w":103.12,"power_limit_w":170.0,"fan_percent":44,"sm_clock_mhz":210,"sm_clock_max_mhz":2100,"mem_clock_mhz":810,"mem_clock_max_mhz":7501,"graphics_clock_mhz":1740,"video_clock_mhz":1620,"pcie_gen_current":3,"pcie_gen_max":4,"pcie_width_current":8,"pcie_width_max":16,"throttle_reasons":"power cap","p_state":"P5"}],"power":{"external_power_online":1,"battery_percent":83,"battery_status":"Discharging","power_draw_w":12.34,"ups_present":1,"source_name":"BAT0","supplies":[{"name":"BAT0","type":"Battery","online":-1,"capacity_percent":83,"status":"Discharging","power_draw_w":12.34,"present":1}]}}`
 }
 
 func assertSampleJSONFields(t *testing.T, smp core.Sample, got map[string]json.RawMessage) {
@@ -250,6 +254,7 @@ func populatedSample() core.Sample {
 	smp.TCPResetsPerSec = 1
 	smp.Net = []core.NetStat{populatedNetStat()}
 	smp.Filesystems = []core.FilesystemStat{populatedFilesystemStat()}
+	smp.Disks = []core.DiskStat{populatedDiskStat()}
 	smp.CPUCoresUsage = []core.CPUCore{populatedCPUCore()}
 	smp.TopProcesses = []core.ProcessStat{populatedProcessStat()}
 	smp.GPUProcesses = []core.GPUProcessStat{populatedGPUProcessStat()}
@@ -291,6 +296,20 @@ func populatedFilesystemStat() core.FilesystemStat {
 		TotalKiB:          20000000,
 		UsedPercent:       40,
 		InodesUsedPercent: 11,
+	}
+}
+
+func populatedDiskStat() core.DiskStat {
+	return core.DiskStat{
+		Device:            "nvme0n1",
+		ReadBps:           4096,
+		WriteBps:          8192,
+		ReadMergedPerSec:  3,
+		WriteMergedPerSec: 4,
+		Util:              5,
+		AwaitMS:           1.25,
+		QueueDepth:        0.75,
+		Inflight:          2,
 	}
 }
 

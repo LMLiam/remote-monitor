@@ -15,7 +15,7 @@ import (
 // BuildStorageRows builds storage, filesystem, and disk IO rows for the dashboard.
 func BuildStorageRows(state core.AppState, activityWidth int, condensed bool) []TableRowSpec {
 	s := state.Current
-	rows := make([]TableRowSpec, 0, storageBaseRowsCap+len(s.Filesystems))
+	rows := make([]TableRowSpec, 0, storageBaseRowsCap+len(s.Filesystems)+(len(s.Disks)*storageRowsPerDisk))
 
 	if s.RootTotalKiB > 0 {
 		freePct := metrics.DiskFreePercent(s)
@@ -30,24 +30,12 @@ func BuildStorageRows(state core.AppState, activityWidth int, condensed bool) []
 		}
 	}
 
-	if s.DiskReadBps >= 0 || s.DiskWriteBps >= 0 {
-		diskIOSeverity := diskUtilSeverity(s.DiskUtil)
-		rows = append(rows, TableFullRow("Disk IO "+fallbackString(s.DiskDevice, TextNA), SeverityColor(diskIOSeverity), fmt.Sprintf("R %s • W %s", formatBps(s.DiskReadBps), formatBps(s.DiskWriteBps)), SeverityColor(diskIOSeverity), "", "", "", gaugeCell(s.DiskUtil, activityWidth, diskIOSeverity)))
-
-		if s.DiskAwaitMS >= 0 || s.DiskQueueDepth >= 0 {
-			latencySeverity := mergeSeverity(diskAwaitSeverity(s.DiskAwaitMS), diskQueueSeverity(s.DiskQueueDepth))
-			rows = append(rows, TableFullRow("Disk Latency", SeverityColor(latencySeverity), "await "+FormatMillisValue(s.DiskAwaitMS), SeverityColor(latencySeverity), "", "queue "+FormatQueueDepth(s.DiskQueueDepth), SeverityColor(latencySeverity), ""))
+	if len(s.Disks) > 1 {
+		for _, disk := range sortedDiskStats(s.Disks) {
+			rows = appendDiskRows(rows, disk, activityWidth, condensed, true)
 		}
-	}
-
-	if !condensed && (s.DiskReadMergedPerSec >= 0 || s.DiskWriteMergedPerSec >= 0) {
-		rows = append(rows, TableFullRow("Disk Merge", ansi.Cyan, fmt.Sprintf("R %s • W %s", formatOpsPerSec(s.DiskReadMergedPerSec), formatOpsPerSec(s.DiskWriteMergedPerSec)), ansi.Cyan, "", "merged ops", ansi.Cyan, ""))
-	}
-
-	if !condensed && s.DiskInflight >= 0 {
-		inflightSeverity := diskQueueSeverity(float64(s.DiskInflight))
-		inflightPct := clamp(s.DiskInflight*diskInflightScale, percentMin, percentMax)
-		rows = append(rows, TableFullRow(LabelDiskInflight, SeverityColor(inflightSeverity), fmt.Sprintf("%d active", s.DiskInflight), SeverityColor(inflightSeverity), "", "", "", gaugeBarCell(inflightPct, activityWidth, SeverityColor(inflightSeverity), fmt.Sprintf("%d req", s.DiskInflight))))
+	} else {
+		rows = appendLegacyDiskRows(rows, s, activityWidth, condensed)
 	}
 
 	if !condensed {
@@ -70,6 +58,66 @@ func BuildStorageRows(state core.AppState, activityWidth int, condensed bool) []
 	}
 
 	return rows
+}
+
+func appendLegacyDiskRows(rows []TableRowSpec, s core.Sample, activityWidth int, condensed bool) []TableRowSpec {
+	disk := core.DiskStat{
+		Device:            s.DiskDevice,
+		ReadBps:           s.DiskReadBps,
+		WriteBps:          s.DiskWriteBps,
+		ReadMergedPerSec:  s.DiskReadMergedPerSec,
+		WriteMergedPerSec: s.DiskWriteMergedPerSec,
+		Util:              s.DiskUtil,
+		AwaitMS:           s.DiskAwaitMS,
+		QueueDepth:        s.DiskQueueDepth,
+		Inflight:          s.DiskInflight,
+	}
+
+	return appendDiskRows(rows, disk, activityWidth, condensed, false)
+}
+
+func appendDiskRows(rows []TableRowSpec, disk core.DiskStat, activityWidth int, condensed, includeDeviceInDetails bool) []TableRowSpec {
+	device := fallbackString(disk.Device, TextNA)
+	if disk.ReadBps >= 0 || disk.WriteBps >= 0 {
+		diskIOSeverity := diskUtilSeverity(disk.Util)
+		rows = append(rows, TableFullRow("Disk IO "+device, SeverityColor(diskIOSeverity), fmt.Sprintf("R %s • W %s", formatBps(disk.ReadBps), formatBps(disk.WriteBps)), SeverityColor(diskIOSeverity), "", "", "", gaugeCell(disk.Util, activityWidth, diskIOSeverity)))
+
+		if disk.AwaitMS >= 0 || disk.QueueDepth >= 0 {
+			label := "Disk Latency"
+			if includeDeviceInDetails {
+				label = "Disk Lat " + device
+			}
+			latencySeverity := mergeSeverity(diskAwaitSeverity(disk.AwaitMS), diskQueueSeverity(disk.QueueDepth))
+			rows = append(rows, TableFullRow(label, SeverityColor(latencySeverity), "await "+FormatMillisValue(disk.AwaitMS), SeverityColor(latencySeverity), "", "queue "+FormatQueueDepth(disk.QueueDepth), SeverityColor(latencySeverity), ""))
+		}
+	}
+
+	if !condensed && (disk.ReadMergedPerSec >= 0 || disk.WriteMergedPerSec >= 0) {
+		label := "Disk Merge"
+		if includeDeviceInDetails {
+			label += " " + device
+		}
+		rows = append(rows, TableFullRow(label, ansi.Cyan, fmt.Sprintf("R %s • W %s", formatOpsPerSec(disk.ReadMergedPerSec), formatOpsPerSec(disk.WriteMergedPerSec)), ansi.Cyan, "", "merged ops", ansi.Cyan, ""))
+	}
+
+	if !condensed && disk.Inflight >= 0 {
+		label := LabelDiskInflight
+		if includeDeviceInDetails {
+			label = "Inflight " + device
+		}
+		inflightSeverity := diskQueueSeverity(float64(disk.Inflight))
+		inflightPct := clamp(disk.Inflight*diskInflightScale, percentMin, percentMax)
+		rows = append(rows, TableFullRow(label, SeverityColor(inflightSeverity), fmt.Sprintf("%d active", disk.Inflight), SeverityColor(inflightSeverity), "", "", "", gaugeBarCell(inflightPct, activityWidth, SeverityColor(inflightSeverity), fmt.Sprintf("%d req", disk.Inflight))))
+	}
+
+	return rows
+}
+
+func sortedDiskStats(disks []core.DiskStat) []core.DiskStat {
+	sorted := append([]core.DiskStat(nil), disks...)
+	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Device < sorted[j].Device })
+
+	return sorted
 }
 
 // FilesystemLabel returns a compact display label for a mount path.

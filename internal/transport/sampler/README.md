@@ -70,7 +70,7 @@ go test -tags=integration ./...
 - `pressure.sh`: Linux pressure stall information.
 - `wsl.sh`: WSL detection and optional Windows host metrics.
 - `filesystems.sh`: filesystem usage cache and JSON.
-- `disk.sh`: root disk counters and JSON.
+- `disk.sh`: root and mounted block-device counters and JSON.
 - `network.sh`: interface discovery, network counters, and TCP counters.
 - `gpu_common.sh`: shared GPU JSON array helpers and final vendor output combiner.
 - `gpu_nvidia.sh`: NVIDIA GPU metrics and GPU process metrics.

@@ -46,6 +46,8 @@ prev_cpu_iowait=()
 prev_cpu_steal=()
 tracked_net_ifaces=()
 prev_net_sample=()
+tracked_disk_devices=()
+prev_disk_sample=()
 prev_disk_sectors_read='-1'
 prev_disk_sectors_written='-1'
 prev_disk_io_ms='-1'
@@ -71,6 +73,8 @@ prev_cpu_iowait=("${cpu_iowait[@]}")
 prev_cpu_steal=("${cpu_steal[@]}")
 discover_net_ifaces
 prime_net_baselines
+discover_disk_devices
+prime_disk_baselines
 
 IFS='|' read -r prev_disk_sectors_read prev_disk_sectors_written prev_disk_io_ms prev_disk_reads_completed prev_disk_reads_merged prev_disk_read_ms prev_disk_writes_completed prev_disk_writes_merged prev_disk_write_ms _prev_disk_in_flight prev_disk_weighted_ms < <(read_disk_sample "${root_device}")
 IFS='|' read -r prev_swap_in_pages prev_swap_out_pages < <(read_swap_io_sample)
@@ -160,6 +164,7 @@ while true; do
   fi
 
   disk_json="$(build_disk_json)"
+  disks_json="$(build_disks_json)"
   net_json="$(build_net_json)"
   filesystems_json="$(build_filesystems_json)"
   cpu_core_json="$(build_cpu_core_json)"
@@ -168,7 +173,7 @@ while true; do
   gpu_json="$(build_gpu_json)"
   power_json="$(build_power_json)"
 
-  printf '{"version":1,"epoch":%s,"timestamp":"%s","remote":"%s","uptime_seconds":%s,"load1":%s,"load5":%s,"load15":%s,"cpu_cores":%s,"cpu_name":"%s","cpu_percent":%s,"cpu_user_percent":%s,"cpu_system_percent":%s,"cpu_iowait_percent":%s,"cpu_steal_percent":%s,"ram_used_mib":%s,"ram_total_mib":%s,"ram_available_mib":%s,"ram_free_mib":%s,"ram_cache_mib":%s,"ram_buffers_mib":%s,"ram_reclaimable_mib":%s,"ram_shared_mib":%s,"cpu_freq_mhz":%s,"cpu_max_freq_mhz":%s,"cpu_temp_c":%s,"cpu_pressure_some_avg10":%s,"cpu_pressure_full_avg10":%s,"mem_pressure_some_avg10":%s,"mem_pressure_full_avg10":%s,"swap":{"free_kib":%s,"total_kib":%s,"in_bps":%s,"out_bps":%s},"disk":%s,"net":%s,"filesystems":%s,"tcp_retrans_segs_per_sec":%s,"tcp_resets_per_sec":%s,"cpu_core_usage":%s,"top_processes":%s,"gpu_processes":%s,"gpus":%s,"power":%s}\n' \
+  printf '{"version":1,"epoch":%s,"timestamp":"%s","remote":"%s","uptime_seconds":%s,"load1":%s,"load5":%s,"load15":%s,"cpu_cores":%s,"cpu_name":"%s","cpu_percent":%s,"cpu_user_percent":%s,"cpu_system_percent":%s,"cpu_iowait_percent":%s,"cpu_steal_percent":%s,"ram_used_mib":%s,"ram_total_mib":%s,"ram_available_mib":%s,"ram_free_mib":%s,"ram_cache_mib":%s,"ram_buffers_mib":%s,"ram_reclaimable_mib":%s,"ram_shared_mib":%s,"cpu_freq_mhz":%s,"cpu_max_freq_mhz":%s,"cpu_temp_c":%s,"cpu_pressure_some_avg10":%s,"cpu_pressure_full_avg10":%s,"mem_pressure_some_avg10":%s,"mem_pressure_full_avg10":%s,"swap":{"free_kib":%s,"total_kib":%s,"in_bps":%s,"out_bps":%s},"disk":%s,"disks":%s,"net":%s,"filesystems":%s,"tcp_retrans_segs_per_sec":%s,"tcp_resets_per_sec":%s,"cpu_core_usage":%s,"top_processes":%s,"gpu_processes":%s,"gpus":%s,"power":%s}\n' \
     "${epoch_now}" \
     "$(json_escape "${stamp_now}")" \
     "$(json_escape "${remote_name}")" \
@@ -203,6 +208,7 @@ while true; do
     "${swap_in_bps}" \
     "${swap_out_bps}" \
     "${disk_json}" \
+    "${disks_json}" \
     "${net_json}" \
     "${filesystems_json}" \
     "${tcp_retrans_per_sec}" \

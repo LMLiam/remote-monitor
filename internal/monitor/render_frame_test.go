@@ -625,6 +625,40 @@ func withPowerSample(smp *core.Sample) {
 	}
 }
 
+func TestRenderFrameShowsMultipleDiskDeviceRows(t *testing.T) {
+	t.Parallel()
+
+	state := testWideFrameState()
+	state.Current.Disks = []core.DiskStat{
+		testDiskStat(func(disk *core.DiskStat) {
+			disk.Device = testDiskDevice
+			disk.ReadBps = 4096
+			disk.WriteBps = 8192
+			disk.Util = 3
+			disk.AwaitMS = 1.37
+			disk.QueueDepth = 0.21
+			disk.Inflight = 3
+		}),
+		testDiskStat(func(disk *core.DiskStat) {
+			disk.Device = testNVMeDiskDevice
+			disk.ReadBps = 1048576
+			disk.WriteBps = 524288
+			disk.Util = 63
+			disk.AwaitMS = 2.4
+			disk.QueueDepth = 0.4
+			disk.Inflight = 1
+		}),
+	}
+
+	cleaned := ansi.StripANSI(render.Frame(state, 176, 120))
+	assertTextContainsAll(t, "frame", cleaned, []string{
+		"Disk IO " + testDiskDevice,
+		"Disk IO " + testNVMeDiskDevice,
+		"Disk Lat " + testDiskDevice,
+		"Disk Lat " + testNVMeDiskDevice,
+	})
+}
+
 func TestRenderFrameLineWidthsConsistent(t *testing.T) {
 	t.Parallel()
 
