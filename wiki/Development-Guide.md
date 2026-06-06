@@ -92,6 +92,20 @@ bash internal/transport/sampler/assemble.sh
 Commit both the module changes and the regenerated
 `internal/transport/sampler.sh`.
 
+## Wiki Publishing
+
+The GitHub wiki is managed from Markdown files in the repository's `wiki/`
+directory. Edit those pages in pull requests instead of editing the GitHub wiki
+UI directly; direct UI edits can be overwritten by the next one-way sync from
+the repository to the wiki.
+
+The `Publish Wiki` workflow runs after `wiki/**` changes land on `main`. Before
+the first automated publish, a maintainer must open
+`https://github.com/LMLiam/remote-monitor/wiki`, create any starter page in the
+GitHub wiki UI, and rerun the workflow. If the default `GITHUB_TOKEN` cannot
+push to the wiki repository, configure a narrowly scoped `WIKI_PUSH_TOKEN`
+secret.
+
 ## More Contributor References
 
 - [Sampler module README](https://github.com/lmliam/remote-monitor/blob/main/internal/transport/sampler/README.md)

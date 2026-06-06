@@ -34,3 +34,13 @@ This wiki is managed from the main repository's `wiki/` directory. The
 changes land on `main`. Direct edits made in the GitHub wiki UI can be
 overwritten by the next repository-to-wiki sync, so update wiki pages in a pull
 request instead.
+
+Before the first automated publish, a maintainer must initialize the wiki git
+backend:
+
+1. Open `https://github.com/LMLiam/remote-monitor/wiki`.
+2. Create any starter page in the GitHub wiki UI.
+3. Rerun the `Publish Wiki` workflow after a repository wiki change lands.
+
+If the default `GITHUB_TOKEN` cannot push to the wiki repository, configure a
+narrowly scoped `WIKI_PUSH_TOKEN` secret and rerun the workflow.

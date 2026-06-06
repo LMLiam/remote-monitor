@@ -70,7 +70,7 @@ require_line() {
   local description="$2"
 
   if ! grep -Fq -- "${pattern}" "${workflow}"; then
-    echo "build workflow missing ${description}: ${pattern}" >&2
+    echo "workflow missing ${description}: ${pattern}" >&2
     exit 1
   fi
 }
@@ -81,7 +81,7 @@ require_text() {
   local description="$3"
 
   if ! grep -Fq -- "${pattern}" <<<"${text}"; then
-    echo "build workflow missing ${description}: ${pattern}" >&2
+    echo "workflow missing ${description}: ${pattern}" >&2
     exit 1
   fi
 }
@@ -127,6 +127,47 @@ require_job_timeout() {
   require_text "${job_header}" "timeout-minutes:" "${job} job timeout"
 }
 
+require_workflow_permissions() {
+  local source_workflow="$1"
+  local expected="$2"
+  local permissions_block
+
+  permissions_block="$(extract_top_level_block permissions "${source_workflow}")"
+  if [ -z "${permissions_block}" ]; then
+    echo "${source_workflow} missing top-level permissions block: permissions:" >&2
+    exit 1
+  fi
+  require_text "${permissions_block}" "${expected}" "top-level permissions"
+}
+
+require_job_permissions() {
+  local source_workflow="$1"
+  local job="$2"
+  local expected="$3"
+  local job_header
+
+  job_header="$(extract_job_header "${job}" "${source_workflow}")"
+  if [ -z "${job_header}" ]; then
+    echo "${source_workflow} missing ${job} job" >&2
+    exit 1
+  fi
+  require_text "${job_header}" "permissions:" "${job} job permissions block"
+  require_text "${job_header}" "${expected}" "${job} job permissions"
+}
+
+require_job_actions_pinned() {
+  local source_workflow="$1"
+  local job="$2"
+  local uses_line
+
+  while IFS= read -r uses_line; do
+    if ! grep -Eq '@[0-9a-f]{40}([[:space:]]|#|$)' <<<"${uses_line}"; then
+      echo "${source_workflow} ${job} job has unpinned action: ${uses_line}" >&2
+      exit 1
+    fi
+  done < <(extract_job "${job}" "${source_workflow}" | grep -E '^[[:space:]]+uses:' || true)
+}
+
 go_job="$(extract_job "go")"
 if [ -z "${go_job}" ]; then
   echo "build workflow missing go job" >&2
@@ -136,6 +177,12 @@ fi
 tooling_job="$(extract_job "tooling")"
 if [ -z "${tooling_job}" ]; then
   echo "build workflow missing tooling job" >&2
+  exit 1
+fi
+
+wiki_publish_job="$(extract_job "publish" .github/workflows/wiki-publish.yml)"
+if [ -z "${wiki_publish_job}" ]; then
+  echo "wiki publish workflow missing publish job" >&2
   exit 1
 fi
 
@@ -175,6 +222,14 @@ require_job_timeout .github/workflows/release.yml prepare-release
 require_job_timeout .github/workflows/release.yml release
 require_job_timeout .github/workflows/scorecard.yml scorecard
 require_job_timeout .github/workflows/wiki-publish.yml publish
+
+require_workflow_permissions .github/workflows/wiki-publish.yml "contents: read"
+require_job_permissions .github/workflows/wiki-publish.yml publish "contents: write"
+require_job_actions_pinned .github/workflows/wiki-publish.yml publish
+require_text "${wiki_publish_job}" "persist-credentials: false" "disabled checkout credential persistence"
+require_text "${wiki_publish_job}" 'WIKI_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN || secrets.GITHUB_TOKEN }}' "wiki token fallback"
+require_text "${wiki_publish_job}" "bash .github/scripts/publish-wiki.sh" "wiki publish script invocation"
+require_line "bash .github/scripts/test-publish-wiki.sh" "wiki publish script test invocation"
 
 require_text "${tooling_job}" "${expected_go_version}" "declared Go version in tooling job"
 require_text "${tooling_job}" "cache: true" "Go cache in tooling job"

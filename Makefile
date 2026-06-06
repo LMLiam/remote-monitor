@@ -36,6 +36,7 @@ scripts:
 	bash .github/scripts/test-next-release-tag.sh
 	bash .github/scripts/test-verify-main-checks.sh
 	bash .github/scripts/test-build-workflow.sh
+	bash .github/scripts/test-publish-wiki.sh
 
 vet:
 	go vet -tags=integration ./...
