@@ -289,6 +289,46 @@ func TestRemoteSamplerEscapedControlCharactersParseAsSample(t *testing.T) {
 	}
 }
 
+func TestRemoteSamplerNumericNormalizationDoesNotCallTrim(t *testing.T) {
+	t.Parallel()
+
+	snippet := strings.Join([]string{
+		`trim() {`,
+		`  printf 'trim called for %s\n' "$1" >&2`,
+		`  return 42`,
+		`}`,
+		`printf '%s|%s|%s|%s\n' "$(normalize_int ' 42 ')" "$(normalize_int ' n/a ')" "$(normalize_float ' 3.14 ')" "$(normalize_float ' bad ')"`,
+	}, "\n")
+
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule}, snippet, nil)
+	want := "42|-1|3.14|-1"
+	if got != want {
+		t.Fatalf("numeric normalization should trim inline without calling trim\nwant %q\n got %q", want, got)
+	}
+}
+
+func TestRemoteSamplerNumericNormalizationOutput(t *testing.T) {
+	t.Parallel()
+
+	snippet := strings.Join([]string{
+		`printf '%s\n' \`,
+		`  "$(normalize_int ' 42 ')" \`,
+		`  "$(normalize_int '-7')" \`,
+		`  "$(normalize_int 'N/A')" \`,
+		`  "$(normalize_int '3.5')" \`,
+		`  "$(normalize_float ' 3.14 ')" \`,
+		`  "$(normalize_float '-7')" \`,
+		`  "$(normalize_float 'n/a')" \`,
+		`  "$(normalize_float '1.2.3')"`,
+	}, "\n")
+
+	got := runSamplerModuleSnippet(t, []string{samplerJSONModule}, snippet, nil)
+	want := strings.Join([]string{"42", "-7", "-1", "-1", "3.14", "-7", "-1", "-1"}, "\n")
+	if got != want {
+		t.Fatalf("numeric normalization output mismatch\nwant:\n%s\n got:\n%s", want, got)
+	}
+}
+
 func TestRemoteSamplerShellSyntax(t *testing.T) {
 	t.Parallel()
 

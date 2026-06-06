@@ -25,8 +25,11 @@ json_escape() {
 }
 
 normalize_int() {
-  local value
-  value="$(trim "${1:-}")"
+  local value="${1:-}"
+  # Keep normalize_* trimming inline; these helpers run for every numeric sampler
+  # field, and calling trim via command substitution adds one subshell per field.
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
   case "${value}" in
     '' | N/A | n/a)
       printf '%s' '-1'
@@ -43,8 +46,9 @@ normalize_int() {
 }
 
 normalize_float() {
-  local value
-  value="$(trim "${1:-}")"
+  local value="${1:-}"
+  value="${value#"${value%%[![:space:]]*}"}"
+  value="${value%"${value##*[![:space:]]}"}"
   case "${value}" in
     '' | N/A | n/a)
       printf '%s' '-1'
