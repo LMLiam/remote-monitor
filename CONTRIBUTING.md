@@ -11,7 +11,10 @@ Thanks for helping improve `remote-monitor`.
 
 ## Development Setup
 
-Use Go 1.26 or newer. The project intentionally uses native Go tooling and `golangci-lint`.
+Use Go 1.26, the project's current latest stable Go target. Tracking the latest stable release keeps
+local builds on current toolchain improvements and security fixes; the Charm v2 dependency stack
+currently imposes a Go 1.25 floor. The project intentionally uses native Go tooling and
+`golangci-lint`.
 
 ```sh
 go mod download
