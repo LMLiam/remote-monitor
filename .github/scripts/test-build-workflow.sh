@@ -134,6 +134,26 @@ if [ -z "${tooling_job}" ]; then
   exit 1
 fi
 
+go_minor="$(awk '
+  $1 == "go" {
+    split($2, parts, ".")
+    if (parts[1] != "" && parts[2] != "") {
+      print parts[1] "." parts[2]
+      found = 1
+    }
+    exit
+  }
+  END {
+    if (!found) {
+      exit 1
+    }
+  }
+' go.mod)" || {
+  echo "go.mod missing major.minor Go directive" >&2
+  exit 1
+}
+expected_go_version="go-version: \"${go_minor}.x\""
+
 require_line "bash .github/scripts/test-build-workflow.sh" "workflow verifier invocation"
 
 for source_workflow in "${all_workflows[@]}"; do
@@ -150,10 +170,10 @@ require_job_timeout .github/workflows/release.yml prepare-release
 require_job_timeout .github/workflows/release.yml release
 require_job_timeout .github/workflows/scorecard.yml scorecard
 
-require_text "${tooling_job}" 'go-version: "1.26.x"' "explicit Go version in tooling job"
+require_text "${tooling_job}" "${expected_go_version}" "declared Go version in tooling job"
 require_text "${tooling_job}" "cache: true" "Go cache in tooling job"
 reject_text "${tooling_job}" "go-version-file:" "implicit Go version in tooling job"
-require_text "${go_job}" 'go-version: "1.26.x"' "explicit Go version in go job"
+require_text "${go_job}" "${expected_go_version}" "declared Go version in go job"
 require_text "${go_job}" "cache: true" "Go cache in go job"
 reject_text "${go_job}" "go-version-file:" "implicit Go version in go job"
 require_text "${go_job}" "strategy:" "go job matrix strategy"
