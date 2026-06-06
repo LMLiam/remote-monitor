@@ -28,7 +28,9 @@ A live sample moves through the system in this order:
 6. The selected output loop renders text/TUI output or writes JSONL.
 
 ```text
-SSH → sampler.sh → stdout → parser → Sample → AppState → render → output
+SSH → sampler.sh → stdout → parser → Sample → AppState
+                                             ├→ render → output (TUI/text)
+                                             └→ output (JSONL)
 ```
 
 This flow is deliberately one-way. Remote collection code should not know about
@@ -115,9 +117,9 @@ flattens those nested values into `core.Sample` fields such as `SwapFreeKiB`,
 
 The parser validates `version` against the current wire protocol version, which
 is `1`. Any other version is rejected and recorded as the latest parse failure.
-`Parser.LastError()` exposes the most recent non-empty rejected line so the
-transport can report useful disconnect detail if a stream ends before producing
-a valid sample.
+`Parser.LastError()` returns the most recent rejection error from a non-empty
+line so the transport can report useful disconnect detail if a stream ends
+before producing a valid sample.
 
 Parser code should stay focused on decoding and flattening. It should not apply
 network filters, compute histories, or choose presentation defaults; those belong
