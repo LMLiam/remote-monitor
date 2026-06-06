@@ -75,6 +75,9 @@ func usableSSHControlDir(root, controlFile string, child ...string) (string, boo
 	if err := os.MkdirAll(controlDir, sshControlDirPerm); err != nil {
 		return "", false
 	}
+	if err := os.Chmod(controlDir, sshControlDirPerm); err != nil {
+		return "", false
+	}
 	if !isPortableControlPath(controlDir, controlFile) {
 		return "", false
 	}

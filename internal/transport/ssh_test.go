@@ -144,6 +144,24 @@ func TestSSHControlPathDirs(t *testing.T) {
 		assertPortableControlPath(t, controlPath)
 	})
 
+	t.Run("mode", func(t *testing.T) {
+		xdgRuntimeDir := t.TempDir()
+		homeDir := t.TempDir()
+		controlDir := filepath.Join(xdgRuntimeDir, "remote-monitor")
+		//nolint:gosec // G301: this fixture intentionally starts permissive to verify chmod hardening.
+		if err := os.MkdirAll(controlDir, 0o755); err != nil {
+			t.Fatalf("create permissive control dir: %v", err)
+		}
+		t.Setenv("XDG_RUNTIME_DIR", xdgRuntimeDir)
+		t.Setenv("HOME", homeDir)
+
+		controlPath := transport.ResolveSSHControlPath(cfg)
+
+		assertControlPathUnder(t, controlPath, controlDir)
+		assertControlDirMode(t, controlDir)
+		assertPortableControlPath(t, controlPath)
+	})
+
 	t.Run("home", func(t *testing.T) {
 		homeDir := t.TempDir()
 		t.Setenv("XDG_RUNTIME_DIR", "")
