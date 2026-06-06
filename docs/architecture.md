@@ -237,9 +237,11 @@ Most layers have package-level unit tests under `internal/*/`:
   and repeated-field encoding.
 - `internal/monitor/*_test.go` covers output mode resolution, one-shot behavior,
   JSONL/text loops, app state application, render timing, viewport behavior, and
-  history buffers.
+  history buffers. Monitor render fixture tests also cover frame, viewport,
+  layout, title, row, and history behavior at the application boundary.
 - `internal/render/*_test.go` covers formatting, severity, table widths,
-  responsive layout, history, sparklines, and other stateless presentation logic.
+  sparklines, and other stateless presentation helpers that live directly in the
+  render package.
 
 The integration E2E test in `tests/e2e/ssh_e2e_test.go` builds and runs a Docker
 container with an SSH server, starts the local binary against that server, and
