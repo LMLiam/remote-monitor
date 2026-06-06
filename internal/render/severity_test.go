@@ -8,60 +8,60 @@ import (
 )
 
 type severityCase struct {
-	name string
-	got  string
-	want string
+	name     string
+	severity func() string
+	want     string
 }
 
 func TestSeverityThresholds(t *testing.T) {
 	t.Parallel()
 
 	checkSeverityCases(t, []severityCase{
-		{name: "util missing", got: UtilSeverity(-1), want: severityNeutral},
-		{name: "util info", got: UtilSeverity(0), want: severityInfo},
-		{name: "util ok", got: UtilSeverity(40), want: severityOK},
-		{name: "util warn", got: UtilSeverity(80), want: severityWarn},
-		{name: "util critical", got: UtilSeverity(95), want: severityCritical},
-		{name: "memory missing", got: memorySeverity(-1), want: severityNeutral},
-		{name: "memory info", got: memorySeverity(59), want: severityInfo},
-		{name: "memory ok", got: memorySeverity(60), want: severityOK},
-		{name: "memory warn", got: memorySeverity(85), want: severityWarn},
-		{name: "memory critical", got: memorySeverity(90), want: severityCritical},
-		{name: "disk missing", got: diskUtilSeverity(-1), want: severityNeutral},
-		{name: "disk info", got: diskUtilSeverity(39), want: severityInfo},
-		{name: "disk ok", got: diskUtilSeverity(40), want: severityOK},
-		{name: "disk warn", got: diskUtilSeverity(60), want: severityWarn},
-		{name: "disk critical", got: diskUtilSeverity(90), want: severityCritical},
-		{name: "availability missing", got: availabilitySeverity(-1), want: severityNeutral},
-		{name: "availability critical", got: availabilitySeverity(5), want: severityCritical},
-		{name: "availability warn", got: availabilitySeverity(15), want: severityWarn},
-		{name: "availability info", got: availabilitySeverity(35), want: severityInfo},
-		{name: "availability ok", got: availabilitySeverity(36), want: severityOK},
-		{name: "temperature missing", got: temperatureSeverity(-1), want: severityNeutral},
-		{name: "temperature info", got: temperatureSeverity(59), want: severityInfo},
-		{name: "temperature ok", got: temperatureSeverity(60), want: severityOK},
-		{name: "temperature warn", got: temperatureSeverity(70), want: severityWarn},
-		{name: "temperature critical", got: temperatureSeverity(80), want: severityCritical},
-		{name: "power missing", got: powerSeverity(0, 100), want: severityNeutral},
-		{name: "power info", got: powerSeverity(64, 100), want: severityInfo},
-		{name: "power ok", got: powerSeverity(65, 100), want: severityOK},
-		{name: "power warn", got: powerSeverity(90, 100), want: severityWarn},
-		{name: "power critical", got: powerSeverity(98, 100), want: severityCritical},
-		{name: "pressure missing", got: psiSeverity(-1), want: severityNeutral},
-		{name: "pressure info", got: psiSeverity(0.5), want: severityInfo},
-		{name: "pressure ok", got: psiSeverity(1), want: severityOK},
-		{name: "pressure warn", got: psiSeverity(5), want: severityWarn},
-		{name: "pressure critical", got: psiSeverity(20), want: severityCritical},
-		{name: "disk latency missing", got: diskLatencyHistorySeverity(-1), want: severityNeutral},
-		{name: "disk latency info", got: diskLatencyHistorySeverity(9), want: severityInfo},
-		{name: "disk latency ok", got: diskLatencyHistorySeverity(10), want: severityOK},
-		{name: "disk latency warn", got: diskLatencyHistorySeverity(30), want: severityWarn},
-		{name: "disk latency critical", got: diskLatencyHistorySeverity(100), want: severityCritical},
-		{name: "net issues missing", got: netIssueSeverity(-1), want: severityNeutral},
-		{name: "net issues ok", got: netIssueSeverity(0), want: severityOK},
-		{name: "net issues info", got: netIssueSeverity(1), want: severityInfo},
-		{name: "net issues warn", got: netIssueSeverity(20), want: severityWarn},
-		{name: "net issues critical", got: netIssueSeverity(50), want: severityCritical},
+		{name: "util missing", severity: func() string { return UtilSeverity(-1) }, want: severityNeutral},
+		{name: "util info", severity: func() string { return UtilSeverity(0) }, want: severityInfo},
+		{name: "util ok", severity: func() string { return UtilSeverity(40) }, want: severityOK},
+		{name: "util warn", severity: func() string { return UtilSeverity(80) }, want: severityWarn},
+		{name: "util critical", severity: func() string { return UtilSeverity(95) }, want: severityCritical},
+		{name: "memory missing", severity: func() string { return memorySeverity(-1) }, want: severityNeutral},
+		{name: "memory info", severity: func() string { return memorySeverity(59) }, want: severityInfo},
+		{name: "memory ok", severity: func() string { return memorySeverity(60) }, want: severityOK},
+		{name: "memory warn", severity: func() string { return memorySeverity(85) }, want: severityWarn},
+		{name: "memory critical", severity: func() string { return memorySeverity(90) }, want: severityCritical},
+		{name: "disk missing", severity: func() string { return diskUtilSeverity(-1) }, want: severityNeutral},
+		{name: "disk info", severity: func() string { return diskUtilSeverity(39) }, want: severityInfo},
+		{name: "disk ok", severity: func() string { return diskUtilSeverity(40) }, want: severityOK},
+		{name: "disk warn", severity: func() string { return diskUtilSeverity(60) }, want: severityWarn},
+		{name: "disk critical", severity: func() string { return diskUtilSeverity(90) }, want: severityCritical},
+		{name: "availability missing", severity: func() string { return availabilitySeverity(-1) }, want: severityNeutral},
+		{name: "availability critical", severity: func() string { return availabilitySeverity(5) }, want: severityCritical},
+		{name: "availability warn", severity: func() string { return availabilitySeverity(15) }, want: severityWarn},
+		{name: "availability info", severity: func() string { return availabilitySeverity(35) }, want: severityInfo},
+		{name: "availability ok", severity: func() string { return availabilitySeverity(36) }, want: severityOK},
+		{name: "temperature missing", severity: func() string { return temperatureSeverity(-1) }, want: severityNeutral},
+		{name: "temperature info", severity: func() string { return temperatureSeverity(59) }, want: severityInfo},
+		{name: "temperature ok", severity: func() string { return temperatureSeverity(60) }, want: severityOK},
+		{name: "temperature warn", severity: func() string { return temperatureSeverity(70) }, want: severityWarn},
+		{name: "temperature critical", severity: func() string { return temperatureSeverity(80) }, want: severityCritical},
+		{name: "power missing", severity: func() string { return powerSeverity(0, 100) }, want: severityNeutral},
+		{name: "power info", severity: func() string { return powerSeverity(64, 100) }, want: severityInfo},
+		{name: "power ok", severity: func() string { return powerSeverity(65, 100) }, want: severityOK},
+		{name: "power warn", severity: func() string { return powerSeverity(90, 100) }, want: severityWarn},
+		{name: "power critical", severity: func() string { return powerSeverity(98, 100) }, want: severityCritical},
+		{name: "pressure missing", severity: func() string { return psiSeverity(-1) }, want: severityNeutral},
+		{name: "pressure info", severity: func() string { return psiSeverity(0.5) }, want: severityInfo},
+		{name: "pressure ok", severity: func() string { return psiSeverity(1) }, want: severityOK},
+		{name: "pressure warn", severity: func() string { return psiSeverity(5) }, want: severityWarn},
+		{name: "pressure critical", severity: func() string { return psiSeverity(20) }, want: severityCritical},
+		{name: "disk latency missing", severity: func() string { return diskLatencyHistorySeverity(-1) }, want: severityNeutral},
+		{name: "disk latency info", severity: func() string { return diskLatencyHistorySeverity(9) }, want: severityInfo},
+		{name: "disk latency ok", severity: func() string { return diskLatencyHistorySeverity(10) }, want: severityOK},
+		{name: "disk latency warn", severity: func() string { return diskLatencyHistorySeverity(30) }, want: severityWarn},
+		{name: "disk latency critical", severity: func() string { return diskLatencyHistorySeverity(100) }, want: severityCritical},
+		{name: "net issues missing", severity: func() string { return netIssueSeverity(-1) }, want: severityNeutral},
+		{name: "net issues ok", severity: func() string { return netIssueSeverity(0) }, want: severityOK},
+		{name: "net issues info", severity: func() string { return netIssueSeverity(1) }, want: severityInfo},
+		{name: "net issues warn", severity: func() string { return netIssueSeverity(20) }, want: severityWarn},
+		{name: "net issues critical", severity: func() string { return netIssueSeverity(50) }, want: severityCritical},
 	})
 }
 
@@ -72,8 +72,9 @@ func checkSeverityCases(t *testing.T, tests []severityCase) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if tc.got != tc.want {
-				t.Fatalf("severity = %q, want %q", tc.got, tc.want)
+			got := tc.severity()
+			if got != tc.want {
+				t.Fatalf("severity = %q, want %q", got, tc.want)
 			}
 		})
 	}
