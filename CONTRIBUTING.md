@@ -23,13 +23,16 @@ bash .github/scripts/install-git-hooks.sh
 Run these before opening a pull request:
 
 ```sh
-unformatted="$(gofmt -l ./cmd ./internal)"
+unformatted="$(gofmt -l ./cmd ./internal ./tests)"
 test -z "$unformatted" || { echo "$unformatted"; exit 1; }
-go vet ./...
-go test ./...
-golangci-lint run
+go vet -tags=integration ./...
+go test -tags=integration ./...
+golangci-lint run --build-tags=integration
 go build -o remote-monitor ./cmd/remote-monitor
 ```
+
+These mirror the CI checks in `.github/workflows/build.yml`. The integration-tagged test run
+includes the SSH end-to-end test, which self-skips when Docker is unavailable.
 
 ## Code Style
 
