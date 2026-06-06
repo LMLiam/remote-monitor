@@ -99,8 +99,9 @@ directory. Edit those pages in pull requests instead of editing the GitHub wiki
 UI directly; direct UI edits can be overwritten by the next one-way sync from
 the repository to the wiki.
 
-The `Publish Wiki` workflow runs after `wiki/**` changes land on `main`. Before
-the first automated publish, a maintainer must open
+The `Publish Wiki` workflow runs after `wiki/**` or
+`.github/workflows/wiki-publish.yml` changes land on `main`. Before the first
+automated publish, a maintainer must open
 `https://github.com/LMLiam/remote-monitor/wiki`, create any starter page in the
 GitHub wiki UI, and rerun the workflow. If the default `GITHUB_TOKEN` cannot
 push to the wiki repository, configure a narrowly scoped `WIKI_PUSH_TOKEN`
