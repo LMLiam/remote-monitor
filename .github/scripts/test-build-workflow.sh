@@ -31,6 +31,20 @@ extract_job() {
   ' "${source_workflow}"
 }
 
+extract_job_header() {
+  local job="$1"
+  local source_workflow="${2:-${workflow}}"
+
+  extract_job "${job}" "${source_workflow}" | awk '
+    /^    steps:/ {
+      exit
+    }
+    {
+      print
+    }
+  '
+}
+
 require_line() {
   local pattern="$1"
   local description="$2"
@@ -85,14 +99,14 @@ require_workflow_concurrency() {
 require_job_timeout() {
   local source_workflow="$1"
   local job="$2"
-  local job_text
+  local job_header
 
-  job_text="$(extract_job "${job}" "${source_workflow}")"
-  if [ -z "${job_text}" ]; then
+  job_header="$(extract_job_header "${job}" "${source_workflow}")"
+  if [ -z "${job_header}" ]; then
     echo "${source_workflow} missing ${job} job" >&2
     exit 1
   fi
-  require_text "${job_text}" "timeout-minutes:" "${job} job timeout"
+  require_text "${job_header}" "timeout-minutes:" "${job} job timeout"
 }
 
 go_job="$(extract_job "go")"
