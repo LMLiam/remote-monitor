@@ -76,4 +76,12 @@ func TestCPUImbalancePercentHandlesSentinelsAndClamp(t *testing.T) {
 	if got := metrics.CPUImbalancePercent(cores); got != 40 {
 		t.Fatalf("CPUImbalancePercent mixed cores = %d, want 40", got)
 	}
+
+	overRange := []core.CPUCore{
+		{Index: 0, Percent: 0},
+		{Index: 1, Percent: 250},
+	}
+	if got := metrics.CPUImbalancePercent(overRange); got != 100 {
+		t.Fatalf("CPUImbalancePercent over-range core = %d, want 100", got)
+	}
 }
