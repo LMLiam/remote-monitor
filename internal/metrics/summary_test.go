@@ -85,8 +85,14 @@ func TestRAMAvailablePercentUsesPercentOf(t *testing.T) {
 	}
 
 	smp.RAMTotalMiB = 0
-	if got := metrics.RAMAvailablePercent(smp); got != 0 {
-		t.Fatalf("RAMAvailablePercent with zero total = %d, want 0", got)
+	if got := metrics.RAMAvailablePercent(smp); got != -1 {
+		t.Fatalf("RAMAvailablePercent with zero total = %d, want -1", got)
+	}
+
+	smp.RAMTotalMiB = 100
+	smp.RAMAvailableMiB = -1
+	if got := metrics.RAMAvailablePercent(smp); got != -1 {
+		t.Fatalf("RAMAvailablePercent unavailable = %d, want -1", got)
 	}
 }
 

@@ -547,6 +547,45 @@ disk_critical_percent = 92
 	}
 }
 
+//nolint:paralleltest // These subtests use t.Setenv through clearConfigEnv.
+func TestParseConfigReportsThresholdErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{
+			name: "gpu warn temperature must be less than critical",
+			args: []string{"-gpu-warn-temp", "90", "-gpu-critical-temp", "85", testExampleHost},
+			want: "gpu_warn_temp must be less than gpu_critical_temp",
+		},
+		{
+			name: "vram warn percent must be less than critical",
+			args: []string{"-vram-warn-percent", "95", "-vram-critical-percent", "95", testExampleHost},
+			want: "vram_warn_percent must be less than vram_critical_percent",
+		},
+		{
+			name: "disk warn percent must be less than critical",
+			args: []string{"-disk-warn-percent", "95", "-disk-critical-percent", "95", testExampleHost},
+			want: "disk_warn_percent must be less than disk_critical_percent",
+		},
+		{
+			name: "temperature sentinel is rejected",
+			args: []string{"-gpu-critical-temp", "-1", testExampleHost},
+			want: "gpu_critical_temp must be at least 0",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			clearConfigEnv(t)
+
+			_, err := config.ParseConfig(tc.args)
+			assertErrorContains(t, err, tc.want)
+		})
+	}
+}
+
 func TestParseConfigPreservesDirectHostInputsWithProfiles(t *testing.T) {
 	//nolint:paralleltest // These subtests use t.Setenv through clearConfigEnv.
 	t.Run("host flag overrides selected profile", func(t *testing.T) {
