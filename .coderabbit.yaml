@@ -7,13 +7,12 @@
 language: en-US
 early_access: true
 
+# Detailed conventions live in reviews.path_instructions below (no length cap);
+# tone_instructions is capped at 250 characters by the schema.
 tone_instructions: >-
-  Be a strict, concise senior reviewer. Flag concrete issues with a short
-  severity tag (blocker / major / minor / nit) and the reasoning; skip praise
-  and filler. Prioritize correctness, error handling, edge cases (unavailable
-  metrics use -1 or "" sentinels), missing tests, security (no command or
-  argument injection on anything reaching ssh, os/exec, or the remote shell),
-  and the repo's strict lint and convention rules.
+  Strict, concise senior reviewer. Tag each issue blocker/major/minor/nit with
+  brief reasoning; no praise or filler. Prioritize correctness, error handling,
+  edge cases, missing tests, and injection risks in ssh/exec command building.
 
 reviews:
   profile: assertive
