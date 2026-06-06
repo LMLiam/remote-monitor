@@ -101,6 +101,12 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install Bash for sampler tests
+        if: ${{ matrix.os == 'macos-latest' }}
+        run: |
+          brew list bash >/dev/null 2>&1 || brew install bash
+          echo "$(brew --prefix bash)/bin" >> "$GITHUB_PATH"
+
       - name: Vet
         run: go vet -tags=integration ./...
 
