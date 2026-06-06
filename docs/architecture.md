@@ -50,7 +50,10 @@ builds arguments with `SSHArgs()` and launches the fixed `ssh` executable with
 subprocess. The SSH argument list enables connection reuse with
 `ControlMaster=auto`, `ControlPersist`, and a `ControlPath` from
 `ResolveSSHControlPath()`. If the user does not configure a control path, the
-transport derives a per-process socket path under `/tmp` from the target host.
+transport preserves the `rm-<pid>-<hash>.sock` filename pattern while preferring
+per-user socket directories: `$XDG_RUNTIME_DIR/remote-monitor`, then
+`$HOME/.cache/remote-monitor`, and finally `/tmp` when earlier candidates are
+unavailable, unusable, or too long for portable Unix socket paths.
 
 The sampler body is embedded in `internal/transport/sampler.go` with
 `//go:embed sampler.sh`. After the SSH process starts, the transport writes that

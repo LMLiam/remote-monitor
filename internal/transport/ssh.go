@@ -5,9 +5,15 @@ import (
 	"fmt"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+)
+
+const (
+	maxPortableControlPathLen = 100
+	sshControlDirPerm         = 0o700
 )
 
 // SSHArgs builds the ssh command arguments used to run the remote sampler.
@@ -39,8 +45,52 @@ func ResolveSSHControlPath(cfg core.Config) string {
 	}
 
 	sum := sha256.Sum256([]byte(cfg.Host))
+	controlFile := fmt.Sprintf("rm-%d-%x.sock", os.Getpid(), sum[:6])
+	controlDir := resolveSSHControlDir(controlFile)
 
-	return fmt.Sprintf("/tmp/rm-%d-%x.sock", os.Getpid(), sum[:6])
+	return filepath.Join(controlDir, controlFile)
+}
+
+func resolveSSHControlDir(controlFile string) string {
+	if controlDir, ok := usableSSHControlDir(os.Getenv("XDG_RUNTIME_DIR"), controlFile, "remote-monitor"); ok {
+		return controlDir
+	}
+
+	if controlDir, ok := usableSSHControlDir(os.Getenv("HOME"), controlFile, ".cache", "remote-monitor"); ok {
+		return controlDir
+	}
+
+	return "/tmp"
+}
+
+func usableSSHControlDir(root, controlFile string, child ...string) (string, bool) {
+	if root == "" {
+		return "", false
+	}
+	cleanRoot := filepath.Clean(root)
+	if !filepath.IsAbs(cleanRoot) {
+		return "", false
+	}
+	controlDir := filepath.Join(append([]string{cleanRoot}, child...)...)
+	if err := os.MkdirAll(controlDir, sshControlDirPerm); err != nil {
+		return "", false
+	}
+	if err := os.Chmod(controlDir, sshControlDirPerm); err != nil {
+		return "", false
+	}
+	info, err := os.Stat(controlDir)
+	if err != nil || !info.IsDir() || info.Mode().Perm() != sshControlDirPerm {
+		return "", false
+	}
+	if !isPortableControlPath(controlDir, controlFile) {
+		return "", false
+	}
+
+	return controlDir, true
+}
+
+func isPortableControlPath(controlDir, controlFile string) bool {
+	return len(filepath.Join(controlDir, controlFile)) < maxPortableControlPathLen
 }
 
 func normalizedProcessSort(cfg core.Config) string {
