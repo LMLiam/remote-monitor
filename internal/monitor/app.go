@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -19,7 +20,10 @@ import (
 	"github.com/lmliam/remote-monitor/internal/version"
 )
 
-const streamChannelBuffer = 32
+const (
+	streamChannelBuffer = 32
+	sshClientExecutable = "ssh"
+)
 
 var (
 	errOutRequiresJSONL    = errors.New("-out requires -output jsonl")
@@ -27,14 +31,16 @@ var (
 	errOnceNoSample        = errors.New("stream ended before first sample")
 	errOnceStreamFailed    = errors.New("one-shot sample failed before first sample")
 	errOnceContextCanceled = errors.New("one-shot sample canceled before first sample")
+	errSSHClientMissing    = errors.New("ssh client not found in PATH; install OpenSSH")
 )
 
 type streamRunner func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent)
 
 type runDependencies struct {
-	stdout      io.Writer
-	stdoutIsTTY func() bool
-	runStream   streamRunner
+	stdout       io.Writer
+	stdoutIsTTY  func() bool
+	runStream    streamRunner
+	preflightSSH func() error
 }
 
 // RunCLI parses process configuration and starts the monitor application.
@@ -62,9 +68,10 @@ func Run(ctx context.Context, args []string, stdout io.Writer) error {
 
 func defaultRunDependencies(stdout io.Writer) runDependencies {
 	return runDependencies{
-		stdout:      stdout,
-		stdoutIsTTY: render.StdoutIsTTY,
-		runStream:   transport.RunStream,
+		stdout:       stdout,
+		stdoutIsTTY:  render.StdoutIsTTY,
+		runStream:    transport.RunStream,
+		preflightSSH: preflightSSHClient,
 	}
 }
 
@@ -76,6 +83,9 @@ func run(ctx context.Context, cfg core.Config, deps runDependencies) error {
 	outputMode := resolveOutputMode(cfg, deps.stdoutIsTTY())
 	if cfg.Once && outputMode == core.OutputModeTUI {
 		return errOnceTUIUnsupported
+	}
+	if err := deps.preflightSSH(); err != nil {
+		return err
 	}
 	outputWriter, closeOutput, err := openOutputWriter(cfg, outputMode, deps.stdout)
 	if err != nil {
@@ -119,8 +129,19 @@ func normalizeRunDependencies(deps runDependencies) runDependencies {
 	if deps.runStream == nil {
 		deps.runStream = transport.RunStream
 	}
+	if deps.preflightSSH == nil {
+		deps.preflightSSH = preflightSSHClient
+	}
 
 	return deps
+}
+
+func preflightSSHClient() error {
+	if _, err := exec.LookPath(sshClientExecutable); err != nil {
+		return errSSHClientMissing
+	}
+
+	return nil
 }
 
 func resolveOutputMode(cfg core.Config, stdoutIsTTY bool) string {

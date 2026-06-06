@@ -31,8 +31,9 @@ func TestRunWritesJSONLToStdoutWithoutLifecycleText(t *testing.T) {
 	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
 		cfg.OutputMode = core.OutputModeJSONL
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -84,8 +85,9 @@ func TestRunWritesJSONLToFileAndKeepsStdoutEmpty(t *testing.T) {
 		cfg.OutputMode = core.OutputModeJSONL
 		cfg.OutputPath = outputPath
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -129,8 +131,9 @@ func TestRunWritesJSONLWithSelectedAggregateNetwork(t *testing.T) {
 		cfg.NetIncludePatterns = []string{outputIfaceEth0, outputIfaceWlan0}
 		cfg.NetAggregate = true
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -183,8 +186,9 @@ func TestRunReturnsFileErrorBeforeStartingStream(t *testing.T) {
 		cfg.OutputMode = core.OutputModeJSONL
 		cfg.OutputPath = missingDirPath
 	}), runDependencies{
-		stdout:      &bytes.Buffer{},
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &bytes.Buffer{},
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent) {
 			streamStarted = true
 		},
@@ -205,8 +209,9 @@ func TestRunJSONLRejectsOutForTextMode(t *testing.T) {
 		cfg.OutputMode = core.OutputModeText
 		cfg.OutputPath = filepath.Join(t.TempDir(), "samples.jsonl")
 	}), runDependencies{
-		stdout:      &bytes.Buffer{},
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &bytes.Buffer{},
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent) {
 			t.Fatal("stream should not start for invalid output configuration")
 		},
