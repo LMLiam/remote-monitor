@@ -21,6 +21,13 @@ remote agent or daemon. Module path: `github.com/lmliam/remote-monitor`.
 - `internal/output` — JSONL encoder.
 - `internal/monitor` — app wiring, output-mode selection, Bubble Tea program.
 
+## Documentation maintenance
+
+Before opening a PR, check whether the change affects an architecture-documented component:
+transport, sampler, parser, core model, output modes, renderer, or test strategy. If it changes
+architectural boundaries, data flow, ownership, or testing strategy, update `docs/architecture.md`
+in the same PR. Do not edit the architecture guide for unrelated changes.
+
 ## Setup
 
 ```sh

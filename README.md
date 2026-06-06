@@ -250,6 +250,9 @@ Sampler module assembly and collector test guidance lives in
 [internal/transport/sampler/README.md](internal/transport/sampler/README.md). Run
 `make generate` after editing `internal/transport/sampler/` modules.
 
+Architecture and package layout notes live in
+[docs/architecture.md](docs/architecture.md).
+
 Release instructions live in [docs/releasing.md](docs/releasing.md).
 
 ## Contributing
