@@ -94,6 +94,12 @@ func TestRAMAvailablePercentUsesPercentOf(t *testing.T) {
 	if got := metrics.RAMAvailablePercent(smp); got != -1 {
 		t.Fatalf("RAMAvailablePercent unavailable = %d, want -1", got)
 	}
+
+	smp.RAMAvailableMiB = 25
+	smp.RAMTotalMiB = -1
+	if got := metrics.RAMAvailablePercent(smp); got != -1 {
+		t.Fatalf("RAMAvailablePercent with unavailable total = %d, want -1", got)
+	}
 }
 
 func testGPUStat(index, util int, memUsed, memTotal int64, temp int, powerDraw, powerLimit float64) core.GPUStat {
