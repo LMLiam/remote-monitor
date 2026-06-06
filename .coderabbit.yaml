@@ -30,20 +30,27 @@ reviews:
     Require a Conventional Commits subject "verb(scope): summary" with a
     lowercase verb and a lowercase scope, e.g. "ci(sampler): add shellcheck".
   review_status: true                             # default
+  review_details: false                           # default: omit the ignored-files / extra-context details block
   commit_status: true                             # default: post a CodeRabbit commit status
-  fail_commit_status: false                       # default (set true to fail the status check on findings)
+  fail_commit_status: false                       # default: marks the commit status failed when CodeRabbit cannot review the PR for any reason (not on findings)
   poem: false                                     # non-default (default true): keep reviews terse
+  in_progress_fortune: false                      # non-default (default true): no fortune message while reviewing
+  enable_prompt_for_ai_agents: true               # default: include the "Prompt for AI Agents" block in inline comments
   collapse_walkthrough: false                     # non-default (default true): show the full walkthrough
   changed_files_summary: true                     # default
   sequence_diagrams: true                         # default
+  estimate_code_review_effort: true               # default: include an estimated review-effort score in the walkthrough
   assess_linked_issues: true                      # default
   related_issues: true                            # default
   related_prs: true                               # default
   suggested_labels: true                          # default
   auto_apply_labels: true                         # non-default (default false): apply labels, not just suggest
   suggested_reviewers: false                      # non-default (default true): solo maintainer
+  auto_assign_reviewers: false                    # default: do not auto-assign suggested reviewers
+  suggested_reviewers_instructions: []            # default
   abort_on_close: true                            # default
   disable_cache: false                            # default
+  slop_detection: {}                              # default: empty object (spam/low-quality PR detection; public GitHub repos only)
 
   auto_review:
     enabled: true                                 # default
@@ -215,7 +222,14 @@ code_generation:
     language: en-US                               # default
     path_instructions: []                         # default
   unit_tests:
-    path_instructions: []                         # default
+    path_instructions:
+      # Generated *_test.go files inherit the repo's test conventions
+      # (mirrors reviews.path_instructions for **/*_test.go).
+      - path: "**/*_test.go"
+        instructions: >-
+          Generated tests must call t.Parallel(), prefer table-driven cases,
+          cover each new or changed branch including the -1 and "" sentinels and
+          error paths, and assert with clear failure messages.
 
 issue_enrichment:
   auto_enrich:
