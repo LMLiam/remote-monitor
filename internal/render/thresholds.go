@@ -24,24 +24,19 @@ const (
 	tcpRetransWarnPPS     = 10
 	tcpResetCriticalPPS   = 10
 
-	utilCriticalPercent = 95
-	utilWarnPercent     = 80
-	utilOKPercent       = 40
+	utilWarnPercent = 80
+	utilOKPercent   = 40
 
 	memoryCriticalPercent = 90
 	memoryWarnPercent     = 85
 	memoryOKPercent       = 60
 
-	availabilityCriticalPercent = 5
-	availabilityWarnPercent     = 15
-	availabilityInfoPercent     = 35
+	availabilityInfoPercent = 35
 
 	psiCriticalPercent = 20
 	psiWarnPercent     = 5
 
-	temperatureCriticalPercent = 80
-	temperatureWarnPercent     = 70
-	temperatureOKPercent       = 60
+	temperatureOKPercent = 60
 
 	powerCriticalPercent = 98
 	powerWarnPercent     = 90

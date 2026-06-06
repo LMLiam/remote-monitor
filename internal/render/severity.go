@@ -7,12 +7,13 @@ import (
 )
 
 // UtilSeverity maps a utilization percent to a severity name.
-func UtilSeverity(v int) string {
+func UtilSeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if v < 0 {
 		return severityNeutral
 	}
 	switch {
-	case v >= utilCriticalPercent:
+	case v >= thresholds.CPUCriticalPercent:
 		return severityCritical
 	case v >= utilWarnPercent:
 		return severityWarn
@@ -23,7 +24,7 @@ func UtilSeverity(v int) string {
 	}
 }
 
-func memorySeverity(v int) string {
+func memorySeverity(v int, _ core.Thresholds) string {
 	if v < 0 {
 		return severityNeutral
 	}
@@ -39,14 +40,15 @@ func memorySeverity(v int) string {
 	}
 }
 
-func availabilitySeverity(v int) string {
+func availabilitySeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if v < 0 {
 		return severityNeutral
 	}
 	switch {
-	case v <= availabilityCriticalPercent:
+	case v <= thresholds.RAMCriticalAvailablePercent:
 		return severityCritical
-	case v <= availabilityWarnPercent:
+	case v <= thresholds.RAMWarnAvailablePercent:
 		return severityWarn
 	case v <= availabilityInfoPercent:
 		return severityInfo
@@ -70,7 +72,7 @@ func psiSeverity(v float64) string {
 	}
 }
 
-func diskUtilSeverity(v int) string {
+func diskUtilSeverity(v int, _ core.Thresholds) string {
 	if v < 0 {
 		return severityNeutral
 	}
@@ -86,16 +88,68 @@ func diskUtilSeverity(v int) string {
 	}
 }
 
-func temperatureSeverity(v int) string {
+func diskUsageSeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if v < 0 {
 		return severityNeutral
 	}
 	switch {
-	case v >= temperatureCriticalPercent:
+	case v >= thresholds.DiskCriticalPercent:
 		return severityCritical
-	case v >= temperatureWarnPercent:
+	case v >= thresholds.DiskWarnPercent:
+		return severityWarn
+	case v >= diskUtilOKPercent:
+		return severityOK
+	default:
+		return severityInfo
+	}
+}
+
+func temperatureSeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
+	if v < 0 {
+		return severityNeutral
+	}
+	switch {
+	case v >= thresholds.GPUCriticalTemp:
+		return severityCritical
+	case v >= thresholds.GPUWarnTemp:
 		return severityWarn
 	case v >= temperatureOKPercent:
+		return severityOK
+	default:
+		return severityInfo
+	}
+}
+
+func cpuTemperatureSeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
+	if v < 0 {
+		return severityNeutral
+	}
+	switch {
+	case v >= thresholds.CPUCriticalTemp:
+		return severityCritical
+	case v >= thresholds.CPUWarnTemp:
+		return severityWarn
+	case v >= temperatureOKPercent:
+		return severityOK
+	default:
+		return severityInfo
+	}
+}
+
+func vramSeverity(v int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
+	if v < 0 {
+		return severityNeutral
+	}
+	switch {
+	case v >= thresholds.VRAMCriticalPercent:
+		return severityCritical
+	case v >= thresholds.VRAMWarnPercent:
+		return severityWarn
+	case v >= memoryOKPercent:
 		return severityOK
 	default:
 		return severityInfo
@@ -119,12 +173,21 @@ func powerSeverity(draw, limit float64) string {
 	}
 }
 
-func fanSeverity(v int) string {
-	return UtilSeverity(v)
+func fanSeverity(v int, thresholds core.Thresholds) string {
+	return UtilSeverity(v, thresholds)
 }
 
-func clockSeverity(current, maxValue int) string {
-	return UtilSeverity(metrics.ClockPercent(current, maxValue))
+func clockSeverity(current, maxValue int, thresholds core.Thresholds) string {
+	return UtilSeverity(metrics.ClockPercent(current, maxValue), thresholds)
+}
+
+func thresholdsOrDefaults(thresholds core.Thresholds) core.Thresholds {
+	var zeroThresholds core.Thresholds
+	if thresholds == zeroThresholds {
+		return core.DefaultThresholds()
+	}
+
+	return thresholds
 }
 
 func mergeSeverity(a, b string) string {

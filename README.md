@@ -91,9 +91,20 @@ ssh_connect_timeout = 5
 ssh_server_alive = 5
 ssh_server_alive_count = 2
 ssh_control_persist = 30
+cpu_critical_percent = 95
+cpu_warn_temp = 75
+cpu_critical_temp = 85
+ram_warn_available_percent = 15
+ram_critical_available_percent = 5
+gpu_warn_temp = 70
+gpu_critical_temp = 80
+vram_warn_percent = 85
+vram_critical_percent = 95
+disk_warn_percent = 90
+disk_critical_percent = 95
 ```
 
-Profile keys use snake case: `host`, `interval`, `history`, `stale_after`, `reconnect_delay`, `fps`, `theme`, `compact`, `no_banner`, `no_truecolor`, `ssh_connect_timeout`, `ssh_server_alive`, `ssh_server_alive_count`, and `ssh_control_persist`. Unknown keys, missing profiles, invalid TOML, and invalid profile values fail before monitoring starts.
+Profile keys use snake case: `host`, `interval`, `history`, `stale_after`, `reconnect_delay`, `fps`, `theme`, `compact`, `no_banner`, `no_truecolor`, `ssh_connect_timeout`, `ssh_server_alive`, `ssh_server_alive_count`, `ssh_control_persist`, `cpu_critical_percent`, `cpu_warn_temp`, `cpu_critical_temp`, `ram_warn_available_percent`, `ram_critical_available_percent`, `gpu_warn_temp`, `gpu_critical_temp`, `vram_warn_percent`, `vram_critical_percent`, `disk_warn_percent`, and `disk_critical_percent`. Unknown keys, missing profiles, invalid TOML, and invalid profile values fail before monitoring starts.
 
 Precedence is: explicit CLI flags and positional host, then the selected profile, then environment variables, then built-in defaults. Unset profile keys fall through to the environment and built-in defaults.
 
@@ -126,6 +137,17 @@ Useful flags:
 | `-ssh-server-alive` | `MONITOR_SSH_ALIVE_INTERVAL` | `5` seconds |
 | `-ssh-server-alive-count` | `MONITOR_SSH_ALIVE_COUNT` | `2` |
 | `-ssh-control-persist` | `MONITOR_SSH_CONTROL_PERSIST` | `30` seconds |
+| `-cpu-critical-percent` | `MONITOR_CPU_CRITICAL_PERCENT` | `95` |
+| `-cpu-warn-temp` | `MONITOR_CPU_WARN_TEMP` | `75` C |
+| `-cpu-critical-temp` | `MONITOR_CPU_CRITICAL_TEMP` | `85` C |
+| `-ram-warn-available-percent` | `MONITOR_RAM_WARN_AVAILABLE_PERCENT` | `15` |
+| `-ram-critical-available-percent` | `MONITOR_RAM_CRITICAL_AVAILABLE_PERCENT` | `5` |
+| `-gpu-warn-temp` | `MONITOR_GPU_WARN_TEMP` | `70` C |
+| `-gpu-critical-temp` | `MONITOR_GPU_CRITICAL_TEMP` | `80` C |
+| `-vram-warn-percent` | `MONITOR_VRAM_WARN_PERCENT` | `85` |
+| `-vram-critical-percent` | `MONITOR_VRAM_CRITICAL_PERCENT` | `95` |
+| `-disk-warn-percent` | `MONITOR_DISK_WARN_PERCENT` | `90` |
+| `-disk-critical-percent` | `MONITOR_DISK_CRITICAL_PERCENT` | `95` |
 
 Process rows are sorted by descending CPU by default, preserving the original
 dashboard behavior. Use `-process-sort mem` to sort by descending resident
@@ -133,6 +155,16 @@ memory instead. `-process-filter` applies a case-insensitive substring match
 against the process command name and full command line exposed by `ps`; the
 displayed process column remains the command name. Filtering is applied before
 the `-process-count` row limit.
+
+Threshold options control when the dashboard colors values and raises alert
+summary text. `cpu_critical_percent` marks high CPU utilization as critical.
+`cpu_warn_temp` and `cpu_critical_temp` control CPU thermal warnings. RAM
+availability thresholds fire when available memory falls at or below the given
+percent, so `ram_warn_available_percent` must be greater than
+`ram_critical_available_percent`. GPU temperature, VRAM utilization, and disk
+usage thresholds use warn/critical pairs where the warning value must be lower
+than the critical value. Percent thresholds must be 0-100; temperature
+thresholds must be 0-150 C.
 
 ## Network Interface Selection
 

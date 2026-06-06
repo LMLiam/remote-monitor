@@ -12,10 +12,11 @@ import (
 // BuildCPURows builds the CPU section rows for the dashboard table layout.
 func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed bool) []TableRowSpec {
 	s := state.Current
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	rows := make([]TableRowSpec, 0, cpuRowsCapacity)
 	postMapRows := make([]TableRowSpec, 0, cpuPostMapRowsCap)
 
-	cpuSeverity := UtilSeverity(s.CPUPercent)
+	cpuSeverity := UtilSeverity(s.CPUPercent, thresholds)
 	rows = append(rows, TableFullRow("CPU Overall", SeverityColor(cpuSeverity), fmt.Sprintf("%s • load %.2f", percentDisplay(s.CPUPercent), s.Load1), SeverityColor(cpuSeverity), "", "", "", gaugeCell(s.CPUPercent, activityWidth, cpuSeverity)))
 
 	hot := append([]core.CPUCore(nil), s.CPUCoresUsage...)
@@ -39,7 +40,8 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 			TableFullRow(LabelCPUActive, ansi.Cyan, fmt.Sprintf("%d / %d cores >%d%%", activeCount, len(s.CPUCoresUsage), activeThreshold), ansi.Cyan, "", "", "", gaugeBarCell(activePct, activityWidth, ansi.Cyan, percentDisplay(activePct))),
 		)
 
-		postMapRows = append(postMapRows, TableFullRow(LabelCPUImbalance, SeverityColor(UtilSeverity(imbalance)), fmt.Sprintf("hot %d %s • avg active %s", peak.Index, percentDisplay(peak.Percent), percentDisplay(avg)), SeverityColor(UtilSeverity(imbalance)), "", "", "", gaugeBarCell(imbalance, activityWidth, SeverityColor(UtilSeverity(imbalance)), percentDisplay(imbalance))))
+		imbalanceSeverity := UtilSeverity(imbalance, thresholds)
+		postMapRows = append(postMapRows, TableFullRow(LabelCPUImbalance, SeverityColor(imbalanceSeverity), fmt.Sprintf("hot %d %s • avg active %s", peak.Index, percentDisplay(peak.Percent), percentDisplay(avg)), SeverityColor(imbalanceSeverity), "", "", "", gaugeBarCell(imbalance, activityWidth, SeverityColor(imbalanceSeverity), percentDisplay(imbalance))))
 	}
 
 	cpuBreakdowns := []struct {
@@ -62,7 +64,7 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 		if breakdown.percent < 0 {
 			continue
 		}
-		sev := UtilSeverity(breakdown.percent)
+		sev := UtilSeverity(breakdown.percent, thresholds)
 		rows = append(rows, TableFullRow(breakdown.label, SeverityColor(sev), percentDisplay(breakdown.percent), SeverityColor(sev), "", "", "", gaugeCell(breakdown.percent, activityWidth, sev)))
 	}
 
@@ -77,7 +79,7 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 
 	if s.CPUFreqMHz >= 0 || s.CPUMaxFreqMHz > 0 {
 		freqPct := metrics.ClockPercent(s.CPUFreqMHz, s.CPUMaxFreqMHz)
-		freqSeverity := clockSeverity(s.CPUFreqMHz, s.CPUMaxFreqMHz)
+		freqSeverity := clockSeverity(s.CPUFreqMHz, s.CPUMaxFreqMHz, thresholds)
 		freqRow := TableFullRow(LabelCPUFreq, ansi.Lav, formatClockValue(s.CPUFreqMHz), SeverityColor(freqSeverity), "", "max n/a", ansi.Muted, "")
 		if freqPct >= 0 {
 			freqRow.ActivityCell = gaugeBarCell(freqPct, activityWidth, SeverityColor(freqSeverity), percentDisplay(freqPct))
@@ -91,13 +93,13 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 	}
 
 	if s.CPUTempC >= 0 {
-		tempSeverity := temperatureSeverity(s.CPUTempC)
+		tempSeverity := cpuTemperatureSeverity(s.CPUTempC, thresholds)
 		rows = append(rows, TableFullRow(LabelCPUTemp, ansi.Amber, tempDisplay(s.CPUTempC), SeverityColor(tempSeverity), "", "", "", gaugeBarCell(metrics.TemperaturePercent(s.CPUTempC), activityWidth, SeverityColor(tempSeverity), tempDisplay(s.CPUTempC))))
 	}
 
 	if !condensed {
 		for _, core := range hot[:min(hotCorePreviewLimit, len(hot))] {
-			sev := UtilSeverity(core.Percent)
+			sev := UtilSeverity(core.Percent, thresholds)
 			postMapRows = append(postMapRows, TableFullRow(fmt.Sprintf("CPU Hot %d", core.Index), SeverityColor(sev), percentDisplay(core.Percent), SeverityColor(sev), "", "", "", gaugeCell(core.Percent, activityWidth, sev)))
 		}
 	}
@@ -106,7 +108,7 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 		peak := hot[0].Percent
 		rows = append(rows,
 			tableDividerRow(),
-			TableFullRow(LabelCPUMap, ansi.Sand, fmt.Sprintf("%d cores • peak %s", len(s.CPUCoresUsage), percentDisplay(peak)), ansi.Sand, "", "", "", CoreHeatmapCell(s.CPUCoresUsage, activityWidth)),
+			TableFullRow(LabelCPUMap, ansi.Sand, fmt.Sprintf("%d cores • peak %s", len(s.CPUCoresUsage), percentDisplay(peak)), ansi.Sand, "", "", "", CoreHeatmapCell(s.CPUCoresUsage, activityWidth, thresholds)),
 		)
 		if len(postMapRows) > 0 {
 			rows = append(rows, tableDividerRow())
@@ -120,7 +122,8 @@ func BuildCPURows(state core.AppState, valueWidth, activityWidth int, condensed 
 }
 
 // CoreHeatmapCell renders per-core utilization as a fixed-width heatmap cell.
-func CoreHeatmapCell(cores []core.CPUCore, width int) string {
+func CoreHeatmapCell(cores []core.CPUCore, width int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if width <= 0 {
 		return ""
 	}
@@ -132,13 +135,13 @@ func CoreHeatmapCell(cores []core.CPUCore, width int) string {
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].Index < ordered[j].Index })
 
 	if width >= coreMultiRowMinWidth && len(ordered) > coreGroupSize {
-		return multiRowCoreHeatmapCell(ordered, width)
+		return multiRowCoreHeatmapCell(ordered, width, thresholds)
 	}
 
-	return singleLineCoreHeatmapCell(ordered, width)
+	return singleLineCoreHeatmapCell(ordered, width, thresholds)
 }
 
-func multiRowCoreHeatmapCell(ordered []core.CPUCore, width int) string {
+func multiRowCoreHeatmapCell(ordered []core.CPUCore, width int, thresholds core.Thresholds) string {
 	const (
 		coreCellWidth = 3
 		coreGapWidth  = 1
@@ -148,7 +151,7 @@ func multiRowCoreHeatmapCell(ordered []core.CPUCore, width int) string {
 	maxCols := max(coreMinGridColumns, min(len(ordered), (width+coreGapWidth)/(coreCellWidth+coreGapWidth)))
 	cols := squareGridColumns(len(ordered), maxCols)
 	if cols < coreMinGridColumns {
-		return singleLineCoreHeatmapCell(ordered, width)
+		return singleLineCoreHeatmapCell(ordered, width, thresholds)
 	}
 
 	rows := (len(ordered) + cols - 1) / cols
@@ -177,7 +180,7 @@ func multiRowCoreHeatmapCell(ordered []core.CPUCore, width int) string {
 				continue
 			}
 			peak := peaks[slot]
-			b.WriteString(ansi.StyledText(SeverityColor(UtilSeverity(peak)), ansi.TrackBg, strings.Repeat(coreLevelGlyph(peak), coreCellWidth)))
+			b.WriteString(ansi.StyledText(SeverityColor(UtilSeverity(peak, thresholds)), ansi.TrackBg, strings.Repeat(coreLevelGlyph(peak), coreCellWidth)))
 		}
 		lines = append(lines, centerRenderedLine(b.String(), width))
 	}
@@ -185,14 +188,14 @@ func multiRowCoreHeatmapCell(ordered []core.CPUCore, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-func singleLineCoreHeatmapCell(ordered []core.CPUCore, width int) string {
+func singleLineCoreHeatmapCell(ordered []core.CPUCore, width int, thresholds core.Thresholds) string {
 	groupGaps := 0
 	if len(ordered) > coreGroupSize {
 		groupGaps = (len(ordered) - 1) / coreGroupSize
 	}
 	if width < len(ordered)+groupGaps {
 		if width < len(ordered) {
-			return compressedCoreHeatmapCell(ordered, width)
+			return compressedCoreHeatmapCell(ordered, width, thresholds)
 		}
 		groupGaps = 0
 	}
@@ -209,7 +212,7 @@ func singleLineCoreHeatmapCell(ordered []core.CPUCore, width int) string {
 			b.WriteString(ansi.Colorize(ansi.BorderColor, "╎"))
 		}
 
-		sev := UtilSeverity(core.Percent)
+		sev := UtilSeverity(core.Percent, thresholds)
 		glyph := coreLevelGlyph(core.Percent)
 		segmentWidth := baseWidth
 		if i < extraWidth {
@@ -309,7 +312,7 @@ func centerRenderedLine(content string, width int) string {
 	return strings.Repeat(" ", left) + content + strings.Repeat(" ", right)
 }
 
-func compressedCoreHeatmapCell(ordered []core.CPUCore, width int) string {
+func compressedCoreHeatmapCell(ordered []core.CPUCore, width int, thresholds core.Thresholds) string {
 	if width <= 0 {
 		return ""
 	}
@@ -327,7 +330,7 @@ func compressedCoreHeatmapCell(ordered []core.CPUCore, width int) string {
 				peak = core.Percent
 			}
 		}
-		b.WriteString(ansi.StyledText(SeverityColor(UtilSeverity(peak)), ansi.TrackBg, coreLevelGlyph(peak)))
+		b.WriteString(ansi.StyledText(SeverityColor(UtilSeverity(peak, thresholds)), ansi.TrackBg, coreLevelGlyph(peak)))
 	}
 
 	return b.String()

@@ -125,6 +125,7 @@ func ViewportFrame(state core.AppState, width, height, scrollOffset int) (frame 
 // FullFrame renders the complete dashboard without viewport clipping.
 func FullFrame(state core.AppState, width, height int) string {
 	s := state.Current
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	totalWidth := max(width-frameHorizontalMargin, frameMinWidth)
 
 	var b strings.Builder
@@ -136,7 +137,7 @@ func FullFrame(state core.AppState, width, height int) string {
 	if state.ReconnectCount > reconnectCriticalCount {
 		reconnectColor = ansi.Red
 	}
-	loadColor := SeverityColor(UtilSeverity(s.CPUPercent))
+	loadColor := SeverityColor(UtilSeverity(s.CPUPercent, thresholds))
 	status := currentStatus(state)
 	statusText := inlineChip(strings.ToUpper(status), statusBackground(status))
 	titleCfg := state.Cfg

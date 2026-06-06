@@ -34,6 +34,7 @@ func testConfig(overrides ...func(*core.Config)) core.Config {
 		SSHAliveCountMax:   0,
 		SSHControlPersist:  0,
 		SSHControlPath:     "",
+		Thresholds:         core.DefaultThresholds(),
 	}
 	for _, override := range overrides {
 		override(&cfg)

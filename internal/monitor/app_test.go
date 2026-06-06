@@ -160,7 +160,7 @@ func TestApplySampleAppendsExpandedHistorySeries(t *testing.T) {
 			gpu.Util = 7
 			gpu.MemUsed = 4204
 			gpu.MemTotal = 12288
-			gpu.Temp = 64
+			gpu.Temp = 120
 			gpu.PowerDraw = 103.12
 			gpu.PowerLimit = 170
 		})}
@@ -183,6 +183,9 @@ func TestApplySampleAppendsExpandedHistorySeries(t *testing.T) {
 	}
 	if got := state.DiskLatencyHistory; len(got) != 1 || got[0] != metrics.DiskLatencyHistoryPercent(smp) {
 		t.Fatalf("diskLatencyHistory = %#v", got)
+	}
+	if got := state.TempHistory; len(got) != 1 || got[0] != metrics.OverallTempValue(smp) {
+		t.Fatalf("tempHistory = %#v", got)
 	}
 	if got := state.NetIssueHistory; len(got) != 1 || got[0] != metrics.NetIssueHistoryPercent(smp) {
 		t.Fatalf("netIssueHistory = %#v", got)

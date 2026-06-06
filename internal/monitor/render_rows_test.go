@@ -36,7 +36,7 @@ func TestCoreHeatmapCellUsesSquareMultiRowGrid(t *testing.T) {
 		{Index: 4, Percent: 61},
 		{Index: 5, Percent: 81},
 		{Index: 6, Percent: 2},
-	}, 24))
+	}, 24, core.DefaultThresholds()))
 
 	lines := strings.Split(got, "\n")
 	if len(lines) < 2 {
@@ -65,7 +65,7 @@ func TestCoreHeatmapCellFallsBackToSingleLineOnNarrowWidths(t *testing.T) {
 		cores = append(cores, core.CPUCore{Index: i, Percent: (i * 7) % 100})
 	}
 
-	got := ansi.StripANSI(render.CoreHeatmapCell(cores, 12))
+	got := ansi.StripANSI(render.CoreHeatmapCell(cores, 12, core.DefaultThresholds()))
 	if strings.Contains(got, "\n") {
 		t.Fatalf("narrow cpu map should stay single-line, got %q", got)
 	}

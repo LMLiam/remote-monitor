@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	core "github.com/lmliam/remote-monitor/internal/core"
 	"math"
 )
 
@@ -37,6 +38,6 @@ func formatOpsPerSec(v int64) string {
 	}
 }
 
-func inodeUsageSeverity(v int) string {
-	return diskUtilSeverity(v)
+func inodeUsageSeverity(v int, thresholds core.Thresholds) string {
+	return diskUsageSeverity(v, thresholds)
 }

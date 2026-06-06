@@ -515,6 +515,38 @@ no_banner = false
 	}
 }
 
+func TestParseConfigAppliesThresholdPrecedence(t *testing.T) {
+	clearConfigEnv(t)
+	t.Setenv("MONITOR_CPU_CRITICAL_PERCENT", "91")
+	t.Setenv("MONITOR_GPU_WARN_TEMP", "66")
+	configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "profile-host"
+cpu_critical_percent = 88
+gpu_warn_temp = 68
+disk_critical_percent = 92
+`)
+
+	cfg, err := config.ParseConfig([]string{
+		testFlagConfig, configPath,
+		testFlagProfile, testProfileName,
+		"-cpu-critical-percent", "97",
+		"-disk-warn-percent", "81",
+	})
+	if err != nil {
+		t.Fatalf("ParseConfig returned error: %v", err)
+	}
+
+	want := core.DefaultThresholds()
+	want.CPUCriticalPercent = 97
+	want.GPUWarnTemp = 68
+	want.DiskWarnPercent = 81
+	want.DiskCriticalPercent = 92
+	if cfg.Thresholds != want {
+		t.Fatalf("thresholds = %#v, want %#v", cfg.Thresholds, want)
+	}
+}
+
 func TestParseConfigPreservesDirectHostInputsWithProfiles(t *testing.T) {
 	//nolint:paralleltest // These subtests use t.Setenv through clearConfigEnv.
 	t.Run("host flag overrides selected profile", func(t *testing.T) {
@@ -614,6 +646,73 @@ interval = 0
 		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
 		assertErrorContains(t, err, "profile gpu-box interval must be at least 1")
 	})
+
+	t.Run("threshold percent below minimum", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "user@gpu-box"
+cpu_critical_percent = -1
+`)
+
+		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		assertErrorContains(t, err, "profile gpu-box cpu_critical_percent must be at least 0")
+	})
+
+	t.Run("threshold percent above maximum", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "user@gpu-box"
+disk_critical_percent = 101
+`)
+
+		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		assertErrorContains(t, err, "profile gpu-box disk_critical_percent must be no more than 100")
+	})
+
+	t.Run("threshold temperature outside range", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "user@gpu-box"
+gpu_critical_temp = 151
+`)
+
+		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		assertErrorContains(t, err, "profile gpu-box gpu_critical_temp must be no more than 150")
+	})
+
+	t.Run("hotter warn temperature than critical", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "user@gpu-box"
+cpu_warn_temp = 90
+cpu_critical_temp = 85
+`)
+
+		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		assertErrorContains(t, err, "profile gpu-box cpu_warn_temp must be less than cpu_critical_temp")
+	})
+
+	t.Run("lower available warn than critical", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "user@gpu-box"
+ram_warn_available_percent = 4
+ram_critical_available_percent = 5
+`)
+
+		_, err := config.ParseConfig([]string{testFlagConfig, configPath, testFlagProfile, testProfileName})
+		assertErrorContains(t, err, "profile gpu-box ram_warn_available_percent must be greater than ram_critical_available_percent")
+	})
 }
 
 func clearConfigEnv(t *testing.T) {
@@ -634,6 +733,17 @@ func clearConfigEnv(t *testing.T) {
 		"MONITOR_SSH_ALIVE_INTERVAL",
 		"MONITOR_SSH_ALIVE_COUNT",
 		"MONITOR_SSH_CONTROL_PERSIST",
+		"MONITOR_CPU_CRITICAL_PERCENT",
+		"MONITOR_CPU_WARN_TEMP",
+		"MONITOR_CPU_CRITICAL_TEMP",
+		"MONITOR_RAM_WARN_AVAILABLE_PERCENT",
+		"MONITOR_RAM_CRITICAL_AVAILABLE_PERCENT",
+		"MONITOR_GPU_WARN_TEMP",
+		"MONITOR_GPU_CRITICAL_TEMP",
+		"MONITOR_VRAM_WARN_PERCENT",
+		"MONITOR_VRAM_CRITICAL_PERCENT",
+		"MONITOR_DISK_WARN_PERCENT",
+		"MONITOR_DISK_CRITICAL_PERCENT",
 		"XDG_CONFIG_HOME",
 	} {
 		t.Setenv(key, "")

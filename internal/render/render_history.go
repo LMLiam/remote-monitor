@@ -29,6 +29,7 @@ type historyMetricSpec struct {
 // HistoryBox renders the rolling history panel beneath the live tables.
 func HistoryBox(state core.AppState, totalWidth int) string {
 	innerWidth := totalWidth - historyBoxPadding
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	var b strings.Builder
 	b.WriteString(boxRule("╭", "╮", innerWidth))
 	b.WriteString(boxLine("History (newest on the right, rolling samples)", innerWidth, ansi.TitleColor))
@@ -38,10 +39,10 @@ func HistoryBox(state core.AppState, totalWidth int) string {
 	leftWidth := (innerWidth - historyColumnGap) / historyColumnCount
 	rightWidth := innerWidth - historyColumnGap - leftWidth
 	for i := 0; i < len(specs); i += historyColumnCount {
-		left := historyMetricCell(specs[i], leftWidth)
+		left := historyMetricCell(specs[i], leftWidth, thresholds)
 		right := strings.Repeat(" ", rightWidth)
 		if i+1 < len(specs) {
-			right = ansi.Pad(historyMetricCell(specs[i+1], rightWidth), rightWidth)
+			right = ansi.Pad(historyMetricCell(specs[i+1], rightWidth, thresholds), rightWidth)
 		}
 		row := ansi.Pad(left, leftWidth) + "  " + right
 		b.WriteString(boxLine(row, innerWidth, ""))
@@ -56,6 +57,7 @@ func HistoryBox(state core.AppState, totalWidth int) string {
 
 func historyMetricSpecs(state core.AppState) []historyMetricSpec {
 	current := state.Current
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	cpuUtil := lastOrZero(state.CPUHistory)
 	ramUtil := lastOrZero(state.RAMHistory)
 	ramAvailable := metrics.RAMAvailablePercent(current)
@@ -72,19 +74,19 @@ func historyMetricSpecs(state core.AppState) []historyMetricSpec {
 	powerLimit := metrics.OverallPowerLimit(current)
 
 	return []historyMetricSpec{
-		historyMetric("CPU", state.CPUHistory, percentDisplay(cpuUtil), SeverityColor(UtilSeverity(cpuUtil)), "util"),
+		historyMetric("CPU", state.CPUHistory, percentDisplay(cpuUtil), SeverityColor(UtilSeverity(cpuUtil, thresholds)), "util"),
 		historyMetric("CPU FREQ", state.CPUFreqHistory, formatClockValue(current.CPUFreqMHz), ansi.Lav, "clock"),
-		historyMetric("CPU TEMP", state.CPUTempHistory, tempDisplay(current.CPUTempC), SeverityColor(temperatureSeverity(current.CPUTempC)), "temperature"),
-		historyMetric("RAM", state.RAMHistory, percentDisplay(ramUtil), SeverityColor(memorySeverity(ramUtil)), "memory"),
-		historyMetric("RAM AVAIL", state.RAMAvailHistory, percentDisplay(ramAvailable), SeverityColor(availabilitySeverity(ramAvailable)), "availability"),
-		historyMetric("DISK", state.DiskHistory, percentDisplay(diskUtil), SeverityColor(diskUtilSeverity(diskUtil)), "disk"),
+		historyMetric("CPU TEMP", state.CPUTempHistory, tempDisplay(current.CPUTempC), SeverityColor(cpuTemperatureSeverity(current.CPUTempC, thresholds)), "cpu-temperature"),
+		historyMetric("RAM", state.RAMHistory, percentDisplay(ramUtil), SeverityColor(memorySeverity(ramUtil, thresholds)), "memory"),
+		historyMetric("RAM AVAIL", state.RAMAvailHistory, percentDisplay(ramAvailable), SeverityColor(availabilitySeverity(ramAvailable, thresholds)), "availability"),
+		historyMetric("DISK", state.DiskHistory, percentDisplay(diskUtil), SeverityColor(diskUtilSeverity(diskUtil, thresholds)), "disk"),
 		historyMetric("DISK LAT", state.DiskLatencyHistory, FormatMillisValue(current.DiskAwaitMS), SeverityColor(diskLatencySeverity), "latency"),
 		historyRateMetric("NET RX", state.NetRXHistory, formatBps(lastOrZero64(state.NetRXHistory)), ansi.Blue, "net-rx"),
 		historyRateMetric("NET TX", state.NetTXHistory, formatBps(lastOrZero64(state.NetTXHistory)), ansi.Cyan, "net-tx"),
 		historyMetric("NET ISSUES", state.NetIssueHistory, netIssueSummary(current), SeverityColor(netIssueSeverity(netIssues)), "issues"),
-		historyMetric(LabelGPU, state.GPUHistory, percentDisplay(gpuUtil), SeverityColor(UtilSeverity(gpuUtil)), "util"),
-		historyMetric("VRAM", state.VRAMHistory, percentDisplay(vramUtil), SeverityColor(memorySeverity(vramUtil)), "memory"),
-		historyMetric("GPU TEMP", state.TempHistory, tempDisplay(gpuTemp), SeverityColor(temperatureSeverity(gpuTemp)), "temperature"),
+		historyMetric(LabelGPU, state.GPUHistory, percentDisplay(gpuUtil), SeverityColor(UtilSeverity(gpuUtil, thresholds)), "util"),
+		historyMetric("VRAM", state.VRAMHistory, percentDisplay(vramUtil), SeverityColor(vramSeverity(vramUtil, thresholds)), "vram"),
+		historyMetric("GPU TEMP", state.TempHistory, tempDisplay(gpuTemp), SeverityColor(temperatureSeverity(gpuTemp, thresholds)), "gpu-temperature"),
 		historyMetric("POWER", state.PowerHistory, formatPowerValue(powerDraw), SeverityColor(powerSeverity(powerDraw, powerLimit)), "power"),
 	}
 }
@@ -113,7 +115,7 @@ func historyRateMetric(label string, values []int64, suffix, color, metricKind s
 	}
 }
 
-func historyMetricCell(spec historyMetricSpec, width int) string {
+func historyMetricCell(spec historyMetricSpec, width int, thresholds core.Thresholds) string {
 	if width <= 0 {
 		return ""
 	}
@@ -125,7 +127,7 @@ func historyMetricCell(spec historyMetricSpec, width int) string {
 	if spec.isRate {
 		graph = sparklineScaled64(spec.values64, graphWidth, spec.color)
 	} else {
-		graph = sparklineColored(spec.values, graphWidth, spec.metricKind)
+		graph = sparklineColored(spec.values, graphWidth, spec.metricKind, thresholds)
 	}
 	suffix := fillBlock(ansi.RightJustify(spec.suffix, suffixWidth), suffixWidth, spec.color, ansi.PanelAltBg, false)
 

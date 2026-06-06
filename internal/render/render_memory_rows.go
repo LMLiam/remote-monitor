@@ -8,21 +8,22 @@ import (
 
 func buildMemoryRows(state core.AppState, activityWidth int, condensed bool) []TableRowSpec {
 	s := state.Current
+	thresholds := thresholdsOrDefaults(state.Cfg.Thresholds)
 	rows := make([]TableRowSpec, 0, memoryRowsCapacity)
 
 	ramPct := metrics.PercentOf(s.RAMUsedMiB, s.RAMTotalMiB)
-	ramSeverity := memorySeverity(ramPct)
+	ramSeverity := memorySeverity(ramPct, thresholds)
 	rows = append(rows, TableFullRow("RAM", SeverityColor(ramSeverity), formatMiBPair(s.RAMUsedMiB, s.RAMTotalMiB), SeverityColor(ramSeverity), "", "", "", gaugeCell(ramPct, activityWidth, ramSeverity)))
 
 	if s.RAMAvailableMiB >= 0 {
 		availPct := metrics.PercentOf(s.RAMAvailableMiB, s.RAMTotalMiB)
-		availSeverity := availabilitySeverity(availPct)
+		availSeverity := availabilitySeverity(availPct, thresholds)
 		rows = append(rows, TableFullRow(LabelRAMAvail, SeverityColor(availSeverity), formatMiBValue(s.RAMAvailableMiB), SeverityColor(availSeverity), "", "", "", gaugeBarCell(availPct, activityWidth, SeverityColor(availSeverity), percentDisplay(availPct))))
 	}
 
 	if s.RAMFreeMiB >= 0 {
 		freePct := metrics.PercentOf(s.RAMFreeMiB, s.RAMTotalMiB)
-		freeSeverity := availabilitySeverity(freePct)
+		freeSeverity := availabilitySeverity(freePct, thresholds)
 		rows = append(rows, TableFullRow(LabelRAMFree, SeverityColor(freeSeverity), formatMiBValue(s.RAMFreeMiB), SeverityColor(freeSeverity), "", "", "", gaugeBarCell(freePct, activityWidth, SeverityColor(freeSeverity), percentDisplay(freePct))))
 	}
 
@@ -43,14 +44,14 @@ func buildMemoryRows(state core.AppState, activityWidth int, condensed bool) []T
 
 	if !condensed && s.RAMSharedMiB >= 0 {
 		sharedPct := metrics.PercentOf(s.RAMSharedMiB, s.RAMTotalMiB)
-		sharedSeverity := UtilSeverity(sharedPct)
+		sharedSeverity := UtilSeverity(sharedPct, thresholds)
 		rows = append(rows, TableFullRow("RAM Shared", SeverityColor(sharedSeverity), formatMiBValue(s.RAMSharedMiB), SeverityColor(sharedSeverity), "", "", "", gaugeBarCell(sharedPct, activityWidth, SeverityColor(sharedSeverity), percentDisplay(sharedPct))))
 	}
 
 	if s.SwapTotalKiB > 0 {
 		swapUsed := s.SwapTotalKiB - s.SwapFreeKiB
 		swapPct := metrics.PercentOf(swapUsed, s.SwapTotalKiB)
-		swapSeverity := memorySeverity(swapPct)
+		swapSeverity := memorySeverity(swapPct, thresholds)
 		rows = append(rows, TableFullRow("Swap", SeverityColor(swapSeverity), formatKiBPair(swapUsed, s.SwapTotalKiB), SeverityColor(swapSeverity), "", "", "", gaugeCell(swapPct, activityWidth, swapSeverity)))
 	}
 

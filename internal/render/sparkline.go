@@ -1,6 +1,7 @@
 package render
 
 import (
+	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/metrics"
 	"github.com/lmliam/remote-monitor/internal/render/ansi"
 	"math"
@@ -33,7 +34,8 @@ func sparkline(values []int, width int) string {
 	return b.String()
 }
 
-func sparklineColored(values []int, width int, metricKind string) string {
+func sparklineColored(values []int, width int, metricKind string, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if width <= 0 {
 		return ""
 	}
@@ -49,30 +51,35 @@ func sparklineColored(values []int, width int, metricKind string) string {
 	}
 	for _, v := range window {
 		glyph := sparkline([]int{v}, 1)
-		color := historyColor(metricKind, v)
+		color := historyColor(metricKind, v, thresholds)
 		b.WriteString(ansi.Colorize(color, glyph))
 	}
 
 	return b.String()
 }
 
-func historyColor(metricKind string, value int) string {
+func historyColor(metricKind string, value int, thresholds core.Thresholds) string {
+	thresholds = thresholdsOrDefaults(thresholds)
 	if value < 0 {
 		return ansi.Dim
 	}
 	switch metricKind {
 	case "util":
-		return SeverityColor(UtilSeverity(value))
+		return SeverityColor(UtilSeverity(value, thresholds))
 	case "clock":
 		return ansi.Lav
 	case "memory":
-		return SeverityColor(memorySeverity(value))
+		return SeverityColor(memorySeverity(value, thresholds))
 	case "availability":
-		return SeverityColor(availabilitySeverity(value))
-	case "temperature":
-		return SeverityColor(temperatureSeverity(value))
+		return SeverityColor(availabilitySeverity(value, thresholds))
+	case "cpu-temperature":
+		return SeverityColor(cpuTemperatureSeverity(value, thresholds))
+	case "gpu-temperature":
+		return SeverityColor(temperatureSeverity(value, thresholds))
+	case "vram":
+		return SeverityColor(vramSeverity(value, thresholds))
 	case "disk":
-		return SeverityColor(diskUtilSeverity(value))
+		return SeverityColor(diskUtilSeverity(value, thresholds))
 	case "latency":
 		return SeverityColor(diskLatencyHistorySeverity(value))
 	case "issues":
