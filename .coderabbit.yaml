@@ -1,61 +1,86 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
 #
 # CodeRabbit configuration for remote-monitor.
-# Strict reviews with early-access features enabled. The per-path and tone
-# instructions mirror the conventions in AGENTS.md and CONTRIBUTING.md.
+#
+# Strict reviews with early-access features. Every option is set explicitly --
+# including ones left at the CodeRabbit default -- so the effective behavior is
+# obvious from this file. Inline notes mark which values are non-default.
+# Detailed per-language guidance lives in reviews.path_instructions, which
+# mirrors AGENTS.md and CONTRIBUTING.md.
 
-language: en-US
-early_access: true
+language: en-US            # default
+early_access: true         # non-default (default false): opt into early-access features
+enable_free_tier: true     # default
 
-# Detailed conventions live in reviews.path_instructions below (no length cap);
-# tone_instructions is capped at 250 characters by the schema.
+# Capped at 250 characters by the schema; detail lives in reviews.path_instructions.
 tone_instructions: >-
   Strict, concise senior reviewer. Tag each issue blocker/major/minor/nit with
   brief reasoning; no praise or filler. Prioritize correctness, error handling,
   edge cases, missing tests, and injection risks in ssh/exec command building.
 
 reviews:
-  profile: assertive
-  request_changes_workflow: true
-  high_level_summary: true
-  review_status: true
-  collapse_walkthrough: false
-  changed_files_summary: true
-  sequence_diagrams: true
-  assess_linked_issues: true
-  related_issues: true
-  related_prs: true
-  suggested_reviewers: false
-  poem: false
-
+  profile: assertive                              # non-default (default chill): strictest
+  request_changes_workflow: true                  # non-default (default false): blocking "changes requested"
+  high_level_summary: true                        # default
+  high_level_summary_placeholder: "@coderabbitai summary"   # default
+  high_level_summary_instructions: ""             # default
+  high_level_summary_in_walkthrough: false        # default
+  auto_title_placeholder: "@coderabbitai"         # default
   auto_title_instructions: >-
-    Require a Conventional Commits subject: "verb(scope): summary" with a
-    lowercase verb and a lowercase scope, for example
-    "ci(sampler): add shellcheck linting". Keep it concise and imperative.
+    Require a Conventional Commits subject "verb(scope): summary" with a
+    lowercase verb and a lowercase scope, e.g. "ci(sampler): add shellcheck".
+  review_status: true                             # default
+  commit_status: true                             # default: post a CodeRabbit commit status
+  fail_commit_status: false                       # default (set true to fail the status check on findings)
+  poem: false                                     # non-default (default true): keep reviews terse
+  collapse_walkthrough: false                     # non-default (default true): show the full walkthrough
+  changed_files_summary: true                     # default
+  sequence_diagrams: true                         # default
+  assess_linked_issues: true                      # default
+  related_issues: true                            # default
+  related_prs: true                               # default
+  suggested_labels: true                          # default
+  auto_apply_labels: true                         # non-default (default false): apply labels, not just suggest
+  suggested_reviewers: false                      # non-default (default true): solo maintainer
+  abort_on_close: true                            # default
+  disable_cache: false                            # default
 
   auto_review:
-    enabled: true
-    auto_incremental_review: true
-    drafts: false
-    base_branches:
+    enabled: true                                 # default
+    auto_incremental_review: true                 # default: review each new push
+    auto_pause_after_reviewed_commits: 5          # default
+    drafts: false                                 # default: skip draft PRs
+    base_branches:                                # non-default (default []): review PRs into main only
       - main
+    description_keyword: ""                        # default
+    ignore_title_keywords: []                      # default
+    labels: []                                     # default
+    ignore_usernames: []                           # default
 
   finishing_touches:
     docstrings:
-      enabled: true
+      enabled: true                               # default: early-access docstring generation
     unit_tests:
-      enabled: true
+      enabled: true                               # default: early-access unit-test generation
+    simplify:
+      enabled: false                              # default
+    custom: []                                    # default
 
   pre_merge_checks:
     title:
-      mode: error
+      mode: error                                 # non-default (default warning): hard-fail PR title
       requirements: >-
-        Conventional Commits style "verb(scope): summary" with a lowercase verb
-        and lowercase scope; concise and descriptive.
+        Conventional Commits "verb(scope): summary" with a lowercase verb and a
+        lowercase scope; concise and descriptive.
     description:
-      mode: error
+      mode: error                                 # non-default (default warning): hard-fail PR description
     issue_assessment:
-      mode: error
+      mode: error                                 # non-default (default warning): hard-fail linked-issue assessment
+    docstrings:
+      mode: "off"                                 # non-default (default warning): do not gate docstring coverage
+      threshold: 80                               # default (unused while mode is off)
+    custom_checks: []                             # default
+    override_requested_reviewers_only: false      # default
 
   path_filters:
     # sampler.sh is generated from internal/transport/sampler/*.sh; review the
@@ -94,8 +119,8 @@ reviews:
   labeling_instructions:
     - label: area:metrics
       instructions: >-
-        Apply to metric collection, parsing, or the sample model
-        (internal/metrics, internal/parser, internal/core, internal/transport/sampler).
+        Apply to metric collection, parsing, or the sample model (internal/metrics,
+        internal/parser, internal/core, internal/transport/sampler).
     - label: area:rendering
       instructions: >-
         Apply to terminal layout, tables, gauges, colors, or non-interactive and
@@ -134,6 +159,8 @@ reviews:
       instructions: Apply to Go module or GitHub Actions dependency updates.
 
   tools:
+    # Only the analyzers relevant to this repo are listed; every other CodeRabbit
+    # tool stays at its auto default. (Per maintainer choice.)
     shellcheck:
       enabled: true
     golangci-lint:
@@ -148,16 +175,85 @@ reviews:
       enabled: true
     languagetool:
       enabled: true
-      level: default
+      level: default                              # default (alternative: picky)
 
 chat:
-  auto_reply: true
+  auto_reply: true                                # default
+  art: false                                      # non-default (default true): no ASCII art, matches poem: false
+  integrations:
+    jira:
+      usage: auto                                 # default (no Jira connected)
+    linear:
+      usage: auto                                 # default (no Linear connected)
 
 knowledge_base:
-  opt_out: false
+  opt_out: false                                  # default
+  web_search:
+    enabled: true                                 # default
+  code_guidelines:
+    enabled: true                                 # default
+    filePatterns:                                 # non-default (default []): read both guideline files
+      - AGENTS.md
+      - CONTRIBUTING.md
   learnings:
-    scope: auto
+    scope: auto                                   # default
   issues:
-    scope: auto
+    scope: auto                                   # default
   pull_requests:
-    scope: auto
+    scope: auto                                   # default
+  jira:
+    usage: auto                                   # default
+    project_keys: []                              # default
+  linear:
+    usage: auto                                   # default
+    team_keys: []                                 # default
+  mcp:
+    usage: auto                                   # default
+
+code_generation:
+  docstrings:
+    language: en-US                               # default
+    path_instructions: []                         # default
+  unit_tests:
+    path_instructions: []                         # default
+
+issue_enrichment:
+  auto_enrich:
+    enabled: true                                 # non-default (default false): auto-enrich issues with context
+  planning:
+    enabled: true                                 # default: generate an implementation plan for issues
+    auto_planning:
+      enabled: true                               # default: auto-trigger planning by label
+      labels:                                     # non-default (default []): only triaged, ready-for-work issues
+        - "status:ready"
+  labeling:
+    auto_apply_labels: true                       # non-default (default false): apply labels to issues too
+    labeling_instructions:
+      - label: area:metrics
+        instructions: Apply when the issue concerns metric collection, parsing, or the sample model.
+      - label: area:rendering
+        instructions: Apply when the issue concerns terminal layout, tables, gauges, colors, or text/JSONL output.
+      - label: area:ssh
+        instructions: Apply when the issue concerns SSH transport, reconnect, sampler delivery, or remote execution.
+      - label: area:tui
+        instructions: Apply when the issue concerns the Bubble Tea app, keyboard input, themes, or viewport.
+      - label: area:tooling
+        instructions: Apply when the issue concerns build, CI, linting, scripts, or repository automation.
+      - label: area:docs
+        instructions: Apply when the issue concerns README, governance, or other documentation.
+      - label: type:bug
+        instructions: Apply when the issue reports a defect.
+      - label: type:feature
+        instructions: Apply when the issue requests a feature or a new metric.
+      - label: type:test
+        instructions: Apply when the issue is primarily about tests, fixtures, or coverage.
+      - label: type:ci
+        instructions: Apply when the issue concerns CI workflows, checks, or CI automation.
+      - label: type:docs
+        instructions: Apply when the issue is primarily about documentation.
+      - label: type:maintenance
+        instructions: Apply when the issue is a refactor, chore, tooling upkeep, or dependency maintenance.
+      - label: security
+        instructions: Apply to security-sensitive issues such as SSH command construction or supply-chain/CI hardening.
+      - label: dependencies
+        instructions: Apply to Go module or GitHub Actions dependency updates.
