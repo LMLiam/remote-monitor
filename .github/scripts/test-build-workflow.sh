@@ -10,6 +10,7 @@ all_workflows=(
   .github/workflows/dependency-review.yml
   .github/workflows/release.yml
   .github/workflows/scorecard.yml
+  .github/workflows/wiki-publish.yml
 )
 
 extract_job() {
@@ -99,13 +100,17 @@ reject_text() {
 require_workflow_concurrency() {
   local source_workflow="$1"
   local concurrency_block
+  local expected_group='group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}'
 
   concurrency_block="$(extract_top_level_block concurrency "${source_workflow}")"
   if [ -z "${concurrency_block}" ]; then
     echo "${source_workflow} missing top-level concurrency block: concurrency:" >&2
     exit 1
   fi
-  require_text "${concurrency_block}" 'group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}' "stable concurrency group"
+  if [ "${source_workflow}" = ".github/workflows/wiki-publish.yml" ]; then
+    expected_group='group: ${{ github.workflow }}-${{ github.ref }}'
+  fi
+  require_text "${concurrency_block}" "${expected_group}" "stable concurrency group"
   require_text "${concurrency_block}" "cancel-in-progress: true" "superseded-run cancellation"
 }
 
@@ -169,6 +174,7 @@ require_job_timeout .github/workflows/dependency-review.yml dependency-review
 require_job_timeout .github/workflows/release.yml prepare-release
 require_job_timeout .github/workflows/release.yml release
 require_job_timeout .github/workflows/scorecard.yml scorecard
+require_job_timeout .github/workflows/wiki-publish.yml publish
 
 require_text "${tooling_job}" "${expected_go_version}" "declared Go version in tooling job"
 require_text "${tooling_job}" "cache: true" "Go cache in tooling job"
