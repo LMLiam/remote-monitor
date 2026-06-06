@@ -37,8 +37,9 @@ func TestRunOnceWritesSingleTextSnapshot(t *testing.T) {
 		cfg.Once = true
 		cfg.OutputMode = core.OutputModeText
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return true },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return true },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -76,8 +77,9 @@ func TestRunOnceWritesSingleJSONLToStdout(t *testing.T) {
 		cfg.Once = true
 		cfg.OutputMode = core.OutputModeJSONL
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -111,8 +113,9 @@ func TestRunOnceWritesSingleJSONLWithSelectedNetwork(t *testing.T) {
 		cfg.OutputMode = core.OutputModeJSONL
 		cfg.NetIncludePatterns = []string{"wlan*"}
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -148,8 +151,9 @@ func TestRunOnceWritesSingleJSONLToFile(t *testing.T) {
 		cfg.OutputMode = core.OutputModeJSONL
 		cfg.OutputPath = outputPath
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -192,8 +196,9 @@ func TestRunOnceWritesTextWithSelectedNetworkSummary(t *testing.T) {
 		cfg.NetIncludePatterns = []string{outputIfaceEth0, outputIfaceWlan0}
 		cfg.NetAggregate = true
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return true },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return true },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -247,8 +252,9 @@ func TestRunOnceWritesTextWithMultipleDiskSummary(t *testing.T) {
 		cfg.Once = true
 		cfg.OutputMode = core.OutputModeText
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return true },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return true },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -279,8 +285,9 @@ func TestRunOnceReturnsErrorBeforeFirstSample(t *testing.T) {
 		cfg.Once = true
 		cfg.OutputMode = core.OutputModeText
 	}), runDependencies{
-		stdout:      &out,
-		stdoutIsTTY: func() bool { return false },
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
 			defer close(sampleCh)
 			defer close(eventCh)
@@ -310,8 +317,9 @@ func TestRunOnceRejectsTUIBeforeStartingStream(t *testing.T) {
 		cfg.Once = true
 		cfg.OutputMode = core.OutputModeTUI
 	}), runDependencies{
-		stdout:      &bytes.Buffer{},
-		stdoutIsTTY: func() bool { return true },
+		stdout:       &bytes.Buffer{},
+		stdoutIsTTY:  func() bool { return true },
+		preflightSSH: outputTestSSHPreflightOK,
 		runStream: func(context.Context, core.Config, chan<- core.Sample, chan<- core.StreamEvent) {
 			streamStarted = true
 		},
@@ -324,5 +332,40 @@ func TestRunOnceRejectsTUIBeforeStartingStream(t *testing.T) {
 	}
 	if streamStarted {
 		t.Fatal("stream started for unsupported one-shot TUI mode")
+	}
+}
+
+func TestRunReportsMissingSSHBeforeStartingStream(t *testing.T) {
+	t.Setenv("PATH", t.TempDir())
+
+	var out bytes.Buffer
+	streamStarted := false
+	err := run(context.Background(), outputTestConfig(func(cfg *core.Config) {
+		cfg.Once = true
+		cfg.OutputMode = core.OutputModeText
+	}), runDependencies{
+		stdout:       &out,
+		stdoutIsTTY:  func() bool { return false },
+		preflightSSH: preflightSSHClient,
+		runStream: func(_ context.Context, _ core.Config, sampleCh chan<- core.Sample, eventCh chan<- core.StreamEvent) {
+			streamStarted = true
+			close(sampleCh)
+			close(eventCh)
+		},
+	})
+	if err == nil {
+		t.Fatal("run returned nil error without ssh on PATH")
+	}
+	if got := err.Error(); got != "ssh client not found in PATH; install OpenSSH" {
+		t.Fatalf("missing ssh error = %q", got)
+	}
+	if strings.Contains(err.Error(), "exec:") || strings.Contains(err.Error(), "executable file not found") {
+		t.Fatalf("missing ssh error exposed raw exec failure: %q", err.Error())
+	}
+	if streamStarted {
+		t.Fatal("stream started without ssh on PATH")
+	}
+	if out.String() != "" {
+		t.Fatalf("stdout = %q, want empty missing ssh preflight", out.String())
 	}
 }
