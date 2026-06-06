@@ -30,8 +30,17 @@ bash .github/scripts/install-git-hooks.sh   # commit-msg hook validates commit s
 
 ## Local check gate (must be green before pushing — mirrors CI)
 
+`make check` runs the full local gate. The raw commands are:
+
 ```sh
 gofmt -l ./cmd ./internal ./tests           # must print nothing
+go run mvdan.cc/sh/v3/cmd/shfmt@v3.13.1 -i 2 -ci -d .github/scripts internal/transport/sampler internal/transport/sampler.sh tests/e2e/ssh-target
+docker run --rm -v "$PWD:/mnt" -w /mnt docker.io/koalaman/shellcheck:v0.11.0 -S warning -s bash .github/scripts/*.sh tests/e2e/ssh-target/*.sh internal/transport/sampler/assemble.sh internal/transport/sampler.sh
+awk 'NF && $1 !~ /^#/ { print "internal/transport/sampler/" $0 }' internal/transport/sampler/manifest.txt | xargs docker run --rm -v "$PWD:/mnt" -w /mnt docker.io/koalaman/shellcheck:v0.11.0 -S warning -s bash -e SC2034,SC2154
+bash .github/scripts/test-conventional-title.sh
+bash .github/scripts/test-next-release-tag.sh
+bash .github/scripts/test-verify-main-checks.sh
+bash .github/scripts/test-build-workflow.sh
 go vet -tags=integration ./...
 go test -tags=integration ./...             # the SSH e2e test self-skips if Docker is absent
 golangci-lint run --build-tags=integration  # use the version pinned in .github/workflows/build.yml

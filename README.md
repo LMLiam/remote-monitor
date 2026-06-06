@@ -232,24 +232,23 @@ Install dependencies and the local Git hooks:
 
 ```sh
 go mod download
-bash .github/scripts/install-git-hooks.sh
+make setup
 ```
 
 Run the local checks before pushing:
 
 ```sh
-unformatted="$(gofmt -l ./cmd ./internal ./tests)"
-test -z "$unformatted" || { echo "$unformatted"; exit 1; }
-go vet -tags=integration ./...
-go test -tags=integration ./...
-golangci-lint run --build-tags=integration
-go build -o remote-monitor ./cmd/remote-monitor
+make check
 ```
 
-The GitHub Actions workflow runs the same native and integration-tagged checks.
+The GitHub Actions workflow runs the same native, shell, workflow-helper, and
+integration-tagged checks. The ShellCheck target uses Docker to run CI's pinned image.
+Individual targets such as `make fmt`, `make scripts`, `make test`, and `make lint`
+are available for targeted validation.
 
 Sampler module assembly and collector test guidance lives in
-[internal/transport/sampler/README.md](internal/transport/sampler/README.md).
+[internal/transport/sampler/README.md](internal/transport/sampler/README.md). Run
+`make generate` after editing `internal/transport/sampler/` modules.
 
 Release instructions live in [docs/releasing.md](docs/releasing.md).
 
