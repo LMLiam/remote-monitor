@@ -47,7 +47,7 @@ lint:
 	golangci-lint run --build-tags=integration
 
 build:
-	go build -o remote-monitor ./cmd/remote-monitor
+	go build -o /tmp/remote-monitor ./cmd/remote-monitor
 
 generate:
 	go generate ./internal/transport
@@ -65,6 +65,6 @@ help:
 		'make vet         Run go vet with integration tags' \
 		'make test        Run Go tests with integration tags' \
 		'make lint        Run golangci-lint with integration tags' \
-		'make build       Build ./cmd/remote-monitor' \
+		'make build       Build /tmp/remote-monitor' \
 		'make generate    Regenerate generated sampler artifacts' \
 		'make setup       Install local Git hooks'
