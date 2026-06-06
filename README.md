@@ -17,7 +17,10 @@ Terminal UI for monitoring a remote Linux host over SSH.
 
 ## Requirements
 
-- Go 1.26 or newer.
+- Go 1.26, the current latest stable Go target for this project. Tracking the
+  latest stable release keeps builds on current toolchain improvements and
+  security fixes; the Charm v2 dependency stack currently imposes a Go 1.25
+  floor.
 - Local `ssh` client.
 - SSH access to a Linux host with Bash and common core utilities.
 - Optional NVIDIA GPU metrics from `nvidia-smi` on the remote host.
