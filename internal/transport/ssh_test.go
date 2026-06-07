@@ -1,6 +1,8 @@
 package transport_test
 
 import (
+	"errors"
+	"github.com/lmliam/remote-monitor/internal/config"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"github.com/lmliam/remote-monitor/internal/transport"
 	"os"
@@ -59,7 +61,10 @@ func TestSSHArgsIncludeKeepaliveTimeoutAndControlSocket(t *testing.T) {
 		cfg.SSHControlPersist = 45 * time.Second
 	})
 
-	args := transport.SSHArgs(cfg, 2)
+	args, err := transport.SSHArgs(cfg, 2)
+	if err != nil {
+		t.Fatalf("SSHArgs() error = %v", err)
+	}
 	joined := strings.Join(args, " ")
 	for _, want := range []string{
 		"-T",
@@ -89,7 +94,10 @@ func TestSSHArgsPassProcessOptionsToSampler(t *testing.T) {
 		cfg.ProcessCount = 15
 	})
 
-	args := transport.SSHArgs(cfg, 2)
+	args, err := transport.SSHArgs(cfg, 2)
+	if err != nil {
+		t.Fatalf("SSHArgs() error = %v", err)
+	}
 	got := args[len(args)-8:]
 	want := []string{
 		testHost,
@@ -105,6 +113,19 @@ func TestSSHArgsPassProcessOptionsToSampler(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("ssh sampler arg %d = %q, want %q in %#v", i, got[i], want[i], args)
 		}
+	}
+}
+
+func TestSSHArgsRejectsOptionLikeHostAtTransportBoundary(t *testing.T) {
+	t.Parallel()
+
+	cfg := testConfig(func(cfg *core.Config) {
+		cfg.Host = "-oProxyCommand=sh"
+	})
+
+	_, err := transport.SSHArgs(cfg, 2)
+	if !errors.Is(err, config.ErrOptionLikeHost) {
+		t.Fatalf("error = %v, want %v", err, config.ErrOptionLikeHost)
 	}
 }
 
