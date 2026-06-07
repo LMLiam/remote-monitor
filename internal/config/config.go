@@ -16,6 +16,9 @@ import (
 // ErrEmptyHost reports a missing SSH host in parsed configuration.
 var ErrEmptyHost = errors.New("host cannot be empty")
 
+// ErrOptionLikeHost reports an SSH host value that ssh could parse as an option.
+var ErrOptionLikeHost = errors.New("host cannot begin with '-'")
+
 // ErrUnknownOutputMode reports an unsupported -output value.
 var ErrUnknownOutputMode = errors.New("unknown output mode")
 
@@ -165,14 +168,29 @@ func ParseConfig(args []string) (core.Config, error) {
 	if fs.NArg() > 0 {
 		resolved.host = fs.Arg(0)
 	}
-	if strings.TrimSpace(resolved.host) == "" {
-		return core.Config{}, ErrEmptyHost
+	validHost, err := ValidateHost(resolved.host)
+	if err != nil {
+		return core.Config{}, err
 	}
+	resolved.host = validHost
 
 	resolved.clamp()
 	resolved.theme = core.CanonicalThemeName(resolved.theme)
 
 	return buildCoreConfig(resolved, netIncludePatterns, netExcludePatterns, *netAggregate, *once, resolvedOutputMode, *outputPath), nil
+}
+
+// ValidateHost normalizes and validates the SSH host before it reaches ssh argv construction.
+func ValidateHost(host string) (string, error) {
+	trimmed := strings.TrimSpace(host)
+	if trimmed == "" {
+		return "", ErrEmptyHost
+	}
+	if strings.HasPrefix(trimmed, "-") {
+		return "", fmt.Errorf("%w: %q", ErrOptionLikeHost, trimmed)
+	}
+
+	return trimmed, nil
 }
 
 func buildCoreConfig(

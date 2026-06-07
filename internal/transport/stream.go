@@ -99,7 +99,10 @@ func RunStream(ctx context.Context, cfg core.Config, sampleCh chan<- core.Sample
 }
 
 func openActiveStream(ctx context.Context, cfg core.Config, intervalSeconds int) (activeStream, error) {
-	args := SSHArgs(cfg, intervalSeconds)
+	args, err := SSHArgs(cfg, intervalSeconds)
+	if err != nil {
+		return activeStream{cmd: nil, stdout: nil, stderr: nil}, err
+	}
 	// #nosec G204 -- the executable is fixed; SSHArgs builds the argument list from validated Config.
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	stdin, err := cmd.StdinPipe()

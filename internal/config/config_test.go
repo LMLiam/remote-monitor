@@ -32,6 +32,70 @@ func TestParseConfigRequiresHost(t *testing.T) {
 	}
 }
 
+func TestParseConfigRejectsOptionLikeHosts(t *testing.T) {
+	tests := []struct {
+		name string
+		args func(t *testing.T) []string
+		env  string
+	}{
+		{
+			name: "positional host",
+			args: func(t *testing.T) []string {
+				t.Helper()
+
+				return []string{"--", "-oProxyCommand=sh"}
+			},
+			env: "",
+		},
+		{
+			name: "host flag",
+			args: func(t *testing.T) []string {
+				t.Helper()
+
+				return []string{"-host=-F/tmp/config"}
+			},
+			env: "",
+		},
+		{
+			name: "environment host",
+			args: func(t *testing.T) []string {
+				t.Helper()
+
+				return nil
+			},
+			env: "-oLocalCommand=touch /tmp/pwned",
+		},
+		{
+			name: "profile host",
+			args: func(t *testing.T) []string {
+				t.Helper()
+
+				configPath := writeConfigFile(t, `
+[profiles.gpu-box]
+host = "-oProxyCommand=sh"
+`)
+
+				return []string{testFlagConfig, configPath, testFlagProfile, testProfileName}
+			},
+			env: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			clearConfigEnv(t)
+			if tt.env != "" {
+				t.Setenv("REMOTE_MONITOR_HOST", tt.env)
+			}
+
+			_, err := config.ParseConfig(tt.args(t))
+			if !errors.Is(err, config.ErrOptionLikeHost) {
+				t.Fatalf("error = %v", err)
+			}
+		})
+	}
+}
+
 func TestParseConfigAllowsVersionWithoutHost(t *testing.T) {
 	t.Setenv("REMOTE_MONITOR_HOST", "")
 

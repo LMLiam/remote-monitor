@@ -3,6 +3,7 @@ package transport
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/lmliam/remote-monitor/internal/config"
 	core "github.com/lmliam/remote-monitor/internal/core"
 	"os"
 	"path/filepath"
@@ -17,7 +18,12 @@ const (
 )
 
 // SSHArgs builds the ssh command arguments used to run the remote sampler.
-func SSHArgs(cfg core.Config, intervalSeconds int) []string {
+func SSHArgs(cfg core.Config, intervalSeconds int) ([]string, error) {
+	host, err := config.ValidateHost(cfg.Host)
+	if err != nil {
+		return nil, err
+	}
+
 	controlPath := ResolveSSHControlPath(cfg)
 
 	return []string{
@@ -30,12 +36,12 @@ func SSHArgs(cfg core.Config, intervalSeconds int) []string {
 		"-o", "ControlMaster=auto",
 		"-o", "ControlPersist=" + formatSSHDuration(cfg.SSHControlPersist),
 		"-o", "ControlPath=" + controlPath,
-		cfg.Host,
+		host,
 		"bash", "-s", "--", strconv.Itoa(intervalSeconds),
 		normalizedProcessSort(cfg),
 		sshShellQuote(cfg.ProcessFilter),
 		strconv.Itoa(normalizedProcessCount(cfg)),
-	}
+	}, nil
 }
 
 // ResolveSSHControlPath returns the configured or generated SSH control socket path.
