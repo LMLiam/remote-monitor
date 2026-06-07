@@ -81,6 +81,7 @@ jobs:
           bash .github/scripts/test-next-release-tag.sh
           bash .github/scripts/test-verify-main-checks.sh
           bash .github/scripts/test-build-workflow.sh
+          bash .github/scripts/test-publish-wiki.sh
 
       - name: golangci-lint
         uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9

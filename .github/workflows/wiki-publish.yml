@@ -1,0 +1,41 @@
+# One-way wiki sync: repository wiki/ content is published to the GitHub wiki,
+# and direct GitHub wiki UI edits can be overwritten by the next sync.
+# Before the first run, initialize the wiki git backend in the GitHub UI:
+# open https://github.com/LMLiam/remote-monitor/wiki, create any starter page,
+# then rerun this workflow. If GITHUB_TOKEN cannot push to the wiki in this
+# repository, set WIKI_PUSH_TOKEN to a narrowly scoped PAT or GitHub App token.
+
+name: Publish Wiki
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'wiki/**'
+      - '.github/workflows/wiki-publish.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish Wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Sync wiki content
+        env:
+          WIKI_TOKEN: ${{ secrets.WIKI_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/publish-wiki.sh

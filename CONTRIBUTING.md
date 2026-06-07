@@ -55,6 +55,13 @@ Individual targets such as `make fmt`, `make shfmt`, `make shellcheck`, `make sc
 - Add or update tests for parser, renderer, transport, config, and monitor behavior when practical.
 - Include manual testing notes for terminal rendering or SSH behavior that is hard to cover with unit tests.
 
+## Wiki Documentation
+
+Wiki pages are managed from the repository's `wiki/` directory and published by
+GitHub Actions after changes land on `main`. Edit wiki content in pull requests;
+do not edit the GitHub wiki UI directly, because direct edits can be overwritten
+by the one-way repository-to-wiki sync.
+
 ## Security
 
 Please follow [SECURITY.md](SECURITY.md) for sensitive reports. Do not file public issues for vulnerabilities, leaked host details, or exploitable command construction problems.
