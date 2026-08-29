@@ -3,11 +3,11 @@ module github.com/lmliam/remote-monitor
 go 1.26
 
 require (
-	charm.land/bubbles/v2 v2.1.1
-	charm.land/bubbletea/v2 v2.0.8
-	charm.land/lipgloss/v2 v2.0.4
+	charm.land/bubbles/v2 v2.2.1
+	charm.land/bubbletea/v2 v2.0.9
+	charm.land/lipgloss/v2 v2.0.5
 	github.com/BurntSushi/toml v1.6.0
-	github.com/mattn/go-runewidth v0.0.27
+	github.com/mattn/go-runewidth v0.0.28
 	golang.org/x/term v0.45.0
 )
 
