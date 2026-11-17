@@ -134,10 +134,19 @@ jobs:
       - name: Check GoReleaser config
         run: goreleaser check
 
-      - name: Check Homebrew tap credentials
+      - name: Check Homebrew tap app credentials
         env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-        run: test -n "$TAP_GITHUB_TOKEN"
+          TAP_APP_CLIENT_ID: ${{ vars.TAP_APP_CLIENT_ID }}
+          TAP_APP_PRIVATE_KEY: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAP_APP_CLIENT_ID" ]; then
+            echo "::error::Repository variable TAP_APP_CLIENT_ID is not set"
+            exit 1
+          fi
+          if [ -z "$TAP_APP_PRIVATE_KEY" ]; then
+            echo "::error::Repository secret TAP_APP_PRIVATE_KEY is not set"
+            exit 1
+          fi
 
       - name: Publish GitHub release
         run: goreleaser release --clean
@@ -177,19 +186,28 @@ jobs:
           gh api "${notes_args[@]}" --jq .body > release-notes.md
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
 
-      - name: Publish Homebrew formula
+      - name: Create Homebrew tap app token
+        id: tap-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.TAP_APP_CLIENT_ID }}
+          private-key: ${{ secrets.TAP_APP_PRIVATE_KEY }}
+          owner: LMLiam
+          repositories: homebrew-tap
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open Homebrew formula PR
         env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.tap-token.outputs.token }}
           RELEASE_VERSION: ${{ steps.release-metadata.outputs.version }}
         run: |
-          test -n "$TAP_GITHUB_TOKEN"
           checksums="dist/remote-monitor_${RELEASE_VERSION}_checksums.txt"
           test -f "$checksums"
 
+          gh auth setup-git
           tap_dir="$(mktemp -d)"
-          auth_header="$(printf 'x-access-token:%s' "$TAP_GITHUB_TOKEN" | base64 | tr -d '\n')"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            clone https://github.com/LMLiam/homebrew-tap.git "$tap_dir"
+          gh repo clone LMLiam/homebrew-tap "$tap_dir"
 
           scripts/homebrew/generate-formula.sh \
             "$RELEASE_TAG" \
@@ -204,7 +222,19 @@ jobs:
             exit 0
           fi
 
+          branch="update/remote-monitor-${RELEASE_TAG}"
+          existing_pr="$(gh pr list --repo LMLiam/homebrew-tap --head "$branch" --state open --json url --jq '.[].url')"
+          if [ -n "$existing_pr" ]; then
+            echo "Homebrew formula PR already open: ${existing_pr}"
+            exit 0
+          fi
+
+          git -C "$tap_dir" switch -c "$branch"
           git -C "$tap_dir" commit -m "brew(remote-monitor): update to ${RELEASE_TAG}"
-          git -C "$tap_dir" \
-            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            push origin HEAD:main
+          git -C "$tap_dir" push --force origin "$branch"
+          gh pr create \
+            --repo LMLiam/homebrew-tap \
+            --base main \
+            --head "$branch" \
+            --title "brew(remote-monitor): update to ${RELEASE_TAG}" \
+            --body "Automated update from https://github.com/LMLiam/remote-monitor/releases/tag/${RELEASE_TAG}"

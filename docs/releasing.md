@@ -45,13 +45,21 @@ GitHub-generated notes so merged pull requests are listed with their authors
 and full changelog links.
 
 The release job also generates the `remote-monitor` formula from GoReleaser's
-checksum file and pushes it to the `LMLiam/homebrew-tap` repository. Configure
-a `TAP_GITHUB_TOKEN` repository secret before publishing the first tag. Use a
-fine-grained token scoped to `LMLiam/homebrew-tap` with contents read/write
-access; the workflow's normal `GITHUB_TOKEN` keeps using the release
-repository's `contents: write` permission.
+checksum file and opens a formula PR in the `LMLiam/homebrew-tap` repository.
+The PR must be merged before the new version is available to Homebrew. The
+workflow authenticates as a GitHub App with a short-lived token scoped to that
+tap. Create a private GitHub App with Contents and Pull requests read/write
+permissions, and install it only on `LMLiam/homebrew-tap`. Then configure these
+in this repository before publishing the first tag:
 
-After the tap update lands, users can install with:
+- the repository variable `TAP_APP_CLIENT_ID`, set to the App's Client ID;
+- the repository secret `TAP_APP_PRIVATE_KEY`, set to the contents of the App's
+  `.pem` private key.
+
+The workflow's normal `GITHUB_TOKEN` keeps using the release repository's
+`contents: write` permission.
+
+After the formula PR is merged, users can install with:
 
 ```sh
 brew install LMLiam/tap/remote-monitor
@@ -105,8 +113,8 @@ After the workflow finishes:
 - Confirm each archive has a matching `.sbom.spdx.json` release asset.
 - Confirm GitHub build-provenance attestations verify for at least one
   downloaded archive.
-- Confirm `LMLiam/homebrew-tap` contains `Formula/remote-monitor.rb` for the
-  release tag.
+- Confirm the formula PR in `LMLiam/homebrew-tap` is merged and that its
+  `Formula/remote-monitor.rb` targets the release tag.
 - Run `brew install LMLiam/tap/remote-monitor`.
 - Run `brew test LMLiam/tap/remote-monitor`.
 - Download one Linux archive and one macOS archive.
