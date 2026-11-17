@@ -72,13 +72,7 @@ func usableSSHControlDir(root, controlFile string, child ...string) (string, boo
 		return "", false
 	}
 	controlDir := filepath.Join(append([]string{cleanRoot}, child...)...)
-	if err := os.MkdirAll(controlDir, sshControlDirPerm); err != nil {
-		return "", false
-	}
-	if err := os.Chmod(controlDir, sshControlDirPerm); err != nil {
-		return "", false
-	}
-	info, err := os.Stat(controlDir)
+	info, err := prepareSSHControlDir(controlDir)
 	if err != nil || !info.IsDir() || info.Mode().Perm() != sshControlDirPerm {
 		return "", false
 	}
@@ -87,6 +81,21 @@ func usableSSHControlDir(root, controlFile string, child ...string) (string, boo
 	}
 
 	return controlDir, true
+}
+
+// prepareSSHControlDir creates controlDir with private permissions and returns its info.
+// The path derives from XDG_RUNTIME_DIR or HOME and is absolute and cleaned by the caller.
+//
+//nolint:gosec // G703: taint comes from those trusted environment variables.
+func prepareSSHControlDir(controlDir string) (os.FileInfo, error) {
+	if err := os.MkdirAll(controlDir, sshControlDirPerm); err != nil {
+		return nil, err
+	}
+	if err := os.Chmod(controlDir, sshControlDirPerm); err != nil {
+		return nil, err
+	}
+
+	return os.Stat(controlDir)
 }
 
 func isPortableControlPath(controlDir, controlFile string) bool {

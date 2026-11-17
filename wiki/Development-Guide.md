@@ -6,7 +6,7 @@ boundaries, data flow, ownership, and testing strategy, read
 
 ## Setup
 
-Use Go 1.26, the project's current latest stable Go target. Tracking the latest
+Use Go 1.27, the project's current latest stable Go target. Tracking the latest
 stable release keeps local builds on current toolchain improvements and security
 fixes; the Charm v2 dependency stack currently imposes a Go 1.25 floor.
 
