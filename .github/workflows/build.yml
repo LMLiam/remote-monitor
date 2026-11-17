@@ -34,7 +34,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v6
         with:
           # Keep in sync with go.mod when the project bumps Go.
-          go-version: "1.26.x"
+          go-version: "1.27.x"
           cache: true
 
       - name: Check formatting
@@ -86,7 +86,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
-          version: v2.12.2
+          version: v2.15.0
           args: --build-tags=integration
 
   go:
@@ -107,7 +107,7 @@ jobs:
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v6
         with:
           # Keep in sync with go.mod when the project bumps Go.
-          go-version: "1.26.x"
+          go-version: "1.27.x"
           cache: true
 
       - name: Install Bash for sampler tests

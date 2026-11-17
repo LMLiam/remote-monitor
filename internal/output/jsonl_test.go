@@ -153,7 +153,7 @@ func sampleJSONFieldName(t *testing.T, field reflect.StructField) string {
 	if tag == "" {
 		t.Fatalf("core.Sample.%s is missing a JSON tag", field.Name)
 	}
-	name := strings.Split(tag, ",")[0]
+	name, _, _ := strings.Cut(tag, ",")
 	if name == "" {
 		t.Fatalf("core.Sample.%s has an empty JSON field name", field.Name)
 	}
