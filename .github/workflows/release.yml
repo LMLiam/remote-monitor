@@ -134,11 +134,6 @@ jobs:
       - name: Check GoReleaser config
         run: goreleaser check
 
-      - name: Check Homebrew tap credentials
-        env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-        run: test -n "$TAP_GITHUB_TOKEN"
-
       - name: Publish GitHub release
         run: goreleaser release --clean
         env:
@@ -151,7 +146,6 @@ jobs:
           version="${RELEASE_TAG#v}"
           checksums="dist/remote-monitor_${version}_checksums.txt"
           test -f "$checksums"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "checksums=$checksums" >> "$GITHUB_OUTPUT"
 
       - name: Attest release artifacts
@@ -176,35 +170,3 @@ jobs:
 
           gh api "${notes_args[@]}" --jq .body > release-notes.md
           gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --notes-file release-notes.md
-
-      - name: Publish Homebrew formula
-        env:
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          RELEASE_VERSION: ${{ steps.release-metadata.outputs.version }}
-        run: |
-          test -n "$TAP_GITHUB_TOKEN"
-          checksums="dist/remote-monitor_${RELEASE_VERSION}_checksums.txt"
-          test -f "$checksums"
-
-          tap_dir="$(mktemp -d)"
-          auth_header="$(printf 'x-access-token:%s' "$TAP_GITHUB_TOKEN" | base64 | tr -d '\n')"
-          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            clone https://github.com/LMLiam/homebrew-tap.git "$tap_dir"
-
-          scripts/homebrew/generate-formula.sh \
-            "$RELEASE_TAG" \
-            "$checksums" \
-            "$tap_dir/Formula/remote-monitor.rb"
-
-          git -C "$tap_dir" config user.name "LMLiam"
-          git -C "$tap_dir" config user.email "46268350+TheRealEmissions@users.noreply.github.com"
-          git -C "$tap_dir" add Formula/remote-monitor.rb
-          if git -C "$tap_dir" diff --cached --quiet; then
-            echo "Homebrew formula already up to date"
-            exit 0
-          fi
-
-          git -C "$tap_dir" commit -m "brew(remote-monitor): update to ${RELEASE_TAG}"
-          git -C "$tap_dir" \
-            -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth_header}" \
-            push origin HEAD:main
