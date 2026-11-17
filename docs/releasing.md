@@ -20,7 +20,7 @@ Before the first public release, run the `Release` workflow manually from GitHub
 You can also run the same check locally:
 
 ```sh
-go install github.com/goreleaser/goreleaser/v2@v2.16.0
+go install github.com/goreleaser/goreleaser/v2@v2.20.2
 goreleaser check
 goreleaser release --snapshot --clean --skip=publish
 ```
