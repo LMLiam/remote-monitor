@@ -18,3 +18,6 @@
 
 # Temporary local files
 /tmp/
+
+# graphify knowledge graph, rebuilt locally by its git hooks
+graphify-out/
